@@ -1,0 +1,35 @@
+project_id,deployment_id,placename,longitude,latitude,start_date,end_date,bait_type,bait_description,feature_type,feature_type_methodology,camera_id,camera_name,quiet_period,camera_functioning,sensor_height,height_other,sensor_orientation,orientation_other,plot_treatment,plot_treatment_description,detection_distance,subproject_name,subproject_design,event_name,event_description,event_type,recorded_by
+2004085,Percos Driftwood Cam,Percos Driftwood Cam,-120.444986,34.451459,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041545,1,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Percos Boat Cam,Percos Boat Cam,-120.445674,34.450395,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041546,2,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Big Cojo Cam,Big Cojo Cam,-120.45277,34.446176,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041547,3,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Percos Log Cam,Percos Log Cam,-120.43358,34.451435,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041548,4,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Percos Post Cam,Percos Post Cam,-120.431493,34.451174,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041549,5,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Damsite Creek Cam,Damsite Creek Cam,-120.4264076,34.4503411,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041550,6,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Govies Cliff Cam,Govies Cliff Cam,-120.452425,34.442691,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041551,7,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,North Vista Spring Cam,North Vista Spring Cam,-120.473617,34.467715,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041552,8,0,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Percos Beach Cam,Percos Beach Cam,-120.436957,34.451883,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041553,9,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,North Beach Fort Cam,North Beach Fort Cam,-120.474388,34.470065,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041554,10,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,North Seawall Cam,North Seawall Cam,-120.479758,34.480814,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041555,11,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Black Canyon Cam,Black Canyon Cam,-120.475431,34.473854,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041556,12,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cove Cam,Cove Cam,-120.4566805,34.4446375,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041557,13,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Sudden Canyon Cam,Sudden Canyon Cam,-120.543687,34.540297,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041558,14,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,Old Fencepost Cam,Old Fencepost Cam,-120.538155,34.538088,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041559,15,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,Jolluru Cam,Jolluru Cam,-120.534867,34.536237,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041560,16,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,Short Canyon Cam,Short Canyon Cam,-120.531503,34.534763,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041561,17,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,Morida Cam,Morida Cam,-120.556447,34.543781,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041562,18,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,RIZ Cam,RIZ Cam,-120.5523943,34.5412739,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041563,19,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,North Beach Canyon Cam,North Beach Canyon Cam,-120.4722628,34.4601222,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041570,26,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Wood Canyon Cam,Wood Canyon Cam,-120.4418489,34.4520732,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041573,29,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cojo 2 Cam,Cojo 2 Cam,-120.498887,34.503387,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041575,31,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cojo 3 Cam,Cojo 3 Cam,-120.498428,34.502267,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041576,32,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cojo 4 Cam,Cojo 4 Cam,-120.497963,34.501155,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041577,33,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Boathouse Cam,boathouse cam,-120.6087228,34.5568009,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041572,28,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,
+2004085,seawall cam,seawall cam,-120.4781883,34.4794098,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041571,27,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cojo Cam,Cojo Cam,-120.4991,34.503762,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041574,30,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,Cojo Canyon Cam,Cojo Canyon Cam,-120.49685,34.498108,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041578,34,10,Camera Functioning,Knee height,,Varies,,,,,JLDP,,,,,Zilz
+2004085,v22,Point 22,-120.5726733,34.553372,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041564,20,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,v23,Point 23,-120.5692245,34.5519868,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041565,21,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,v24,Point 24,-120.5808551,34.5577272,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041566,22,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,v25,Point 25,-120.5601141,34.5455563,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041567,23,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,v26,Point 26,-120.5936425,34.557918,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041568,24,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz
+2004085,v27,Point 27,-120.6102267,34.5551355,2022-05-01 00:00:00,2023-05-01 00:00:00,None,,None,,2041569,25,10,Camera Functioning,Knee height,,Varies,,,,,VSFB,,,,,Zilz

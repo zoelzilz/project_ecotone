@@ -1,0 +1,59 @@
+---
+title: "HR Camera Site Selection and Cell Coverage"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install.packages("plotKML")
+
+library(plotKML)
+library(tidyverse)
+library(ggmap)
+register_google(key = "AIzaSyBArxYrAlB60bafi6iGDYGtWox6ZIgylNg")
+# had to register a key with personal email because the zilz@ucsb.edu one is all on the fritz about billing nonsense SO
+
+# maybe need?
+library(maps)
+library(sf)
+library(rnaturalearth)
+
+```
+
+Use readGPX to pull in data from gpx files:
+```{r import and combine}
+
+gpx1 <- readGPX("Waypoints_14-MAY-23.gpx")
+gpx2 <- readGPX("Waypoints_16-MAY-23.gpx")
+
+waypoints1 <- gpx1$waypoints
+waypoints2 <- gpx2$waypoints
+
+
+# cam_locations <- merge(cam_locations1, cam_locations2) ## merge returns an empty dataframe, too lazy to figure out why
+
+waypoints <- bind_rows(waypoints1, waypoints2)
+
+write_csv(waypoints, "hr_gps_waypoints_may2023.csv")
+```
+
+
+Quick Map:
+```{r map}
+
+## google maps is a little off (to the north) for some reason
+map.style <- "&style=visibility:off&style=feature:landscape|element:geometry.fill|visibility:on|color:0xdcdcdc&style=feature:water|element:geometry.fill|visibility:on|color:0xffffff&style=feature:water|element:geometry.stroke|visibility:on|color:0x000000"
+
+gavmap <- get_googlemap(center = c(-120.4, 34.46), size = c(1000, 1000), zoom = 14, scale = 1, maptype = "hybrid", format = "png8", filename = "newtest", style = map.style)
+
+#ggmap::get_map(c(-120.4500018, 34.46), source = "google", zoom = 14, scale = 1, maptype = "hybrid")
+
+#pdf("prevmap.pdf", width = 20, height = 24, paper = "letter")
+ggmap(gavmap) + 
+  geom_point(mapping=aes(x = lon, y = lat), data = waypoints, shape = 1, size = 5) + # adding points where cameras are
+  geom_text(aes( label= name, x = lon, y = lat), size = 3, data = waypoints, min.segment.length = 0.3)
+#dev.off()
+
+
+```
+

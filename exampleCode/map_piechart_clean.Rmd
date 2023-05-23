@@ -1,0 +1,463 @@
+---
+title: "map_piechart_clean"
+author: "sbsambado"
+date: "2022-09-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(memisc)
+library(assertthat)
+library(sqldf)
+library(magrittr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(oz)
+library(scatterpie)
+library(rgdal)
+library(maptools)
+library(ggpubr)
+
+coords <- read.csv("reserve_coordinates.csv")
+liz_long <- read.csv("Mathias2021_FieldData_Lizard - lizard_long.csv")
+
+```
+
+fix lizard data
+```{r}
+
+liz_long$binned_prop <- NA
+liz_long$binned_prop[liz_long$nymphal_propption < .4] <- "mostly larvae"
+liz_long$binned_prop[liz_long$nymphal_propption > .6] <- "mostly nymphs"
+liz_long$binned_prop[liz_long$nymphal_propption >= .4 & liz_long$nymphal_propption <= .6] <- "co-feeding"
+
+liz_long$binned_prop <- as.factor(liz_long$binned_prop)
+
+
+liz_long$month <- NA
+liz_long$month[liz_long$round == 1] <- "January"
+liz_long$month[liz_long$round == 2] <- "March"
+liz_long$month[liz_long$round == 3] <- "April"
+liz_long$month[liz_long$round == 4] <- "May"
+liz_long$month[liz_long$round == 5] <- "June"
+
+liz_long$binned_prop <- factor(liz_long$binned_prop,
+                               levels = c("mostly larvae", "co-feeding", "mostly nymphs"))
+
+liz_long$month <- factor(liz_long$month, 
+                         levels = c("January", "March", "April", "May", "June"))
+
+liz_long <- liz_long %>%
+  filter(lab_total_final != 1503)
+
+```
+
+make liz data for each month
+```{r}
+## april
+
+liz_long_april <- liz_long %>%
+  filter(month == "April")
+
+liz_total_a <- liz_long_april %>%
+  group_by(reserve) %>%
+  count(lizard_num) %>%
+  count(n)
+
+liz_april_full <- merge(liz_long_april, liz_total_a, by = "reserve")
+
+names(liz_april_full)[19] <- "ind_lizards"
+
+
+## may
+
+liz_long_may <- liz_long %>%
+  filter(month == "May")
+
+liz_total_m <- liz_long_may %>%
+  group_by(reserve) %>%
+  count(lizard_num) %>%
+  count(n)
+
+liz_may_full <- merge(liz_long_may, liz_total_m, by = "reserve")
+
+names(liz_may_full)[19] <- "ind_lizards"
+
+## june
+
+liz_long_june <- liz_long %>%
+  filter(month == "June")
+
+
+liz_total <- liz_long_june %>%
+  group_by(reserve) %>%
+  count(lizard_num) %>%
+  count(n)
+
+liz_june_full <- merge(liz_long_june, liz_total, by = "reserve")
+
+names(liz_june_full)[19] <- "ind_lizards"
+
+liz_june_full_coord <- merge(liz_june_full, coords, by = "reserve")
+liz_may_full_coord <- merge(liz_may_full, coords, by = "reserve")
+liz_april_full_coord <- merge(liz_april_full, coords, by = "reserve")
+
+
+```
+
+reshape data
+
+```{r}
+## april
+pie.slices_a <- data.frame(liz_april_full_coord %>%
+  group_by(reserve, binned_prop) %>%
+  count())
+
+binned_wide_a <- reshape(pie.slices_a , idvar = "reserve", timevar = "binned_prop", direction = "wide")
+
+wide_full_a <- merge(binned_wide_a, coords, by = "reserve")
+
+wide_select_a <- wide_full_a[, c(1:4, 9:10)]
+
+
+wide_select_a$total_lizards <- rowSums(wide_select_a[2:4], na.rm = TRUE)
+
+wide_select_a$prop_mostly_larvae <- wide_select_a$`n.mostly larvae`/wide_select_a$total_lizards
+wide_select_a$prop_mostly_nymphs <- wide_select_a$`n.mostly nymphs`/wide_select_a$total_lizards
+wide_select_a$prop_both <- wide_select_a$`n.co-feeding`/wide_select_a$total_lizards
+
+unique(wide_select_a$prop_both)
+str(wide_select_a$prop_both)
+
+
+wide_select_a[is.na(wide_select_a)] <- 0
+
+
+
+
+## may
+pie.slices_m <- data.frame(liz_may_full_coord %>%
+  group_by(reserve, binned_prop) %>%
+  count())
+
+binned_wide_m <- reshape(pie.slices_m , idvar = "reserve", timevar = "binned_prop", direction = "wide")
+
+wide_full_m <- merge(binned_wide_m, coords, by = "reserve")
+
+wide_select_m <- wide_full_m[, c(1:4, 9:10)]
+
+
+wide_select_m$total_lizards <- rowSums(wide_select_m[2:4], na.rm = TRUE)
+
+wide_select_m$prop_mostly_larvae <- wide_select_m$`n.mostly larvae`/wide_select_m$total_lizards
+wide_select_m$prop_mostly_nymphs <- wide_select_m$`n.mostly nymphs`/wide_select_m$total_lizards
+wide_select_m$prop_both <- wide_select_m$`n.co-feeding`/wide_select_m$total_lizards
+
+unique(wide_select_m$prop_both)
+str(wide_select_m$prop_both)
+
+
+wide_select_m[is.na(wide_select_m)] <- 0
+
+
+
+
+
+## june
+pie.slices_j <- data.frame(liz_june_full_coord %>%
+  group_by(reserve, binned_prop) %>%
+  count())
+
+binned_wide_ <- reshape(pie.slices_j , idvar = "reserve", timevar = "binned_prop", direction = "wide")
+
+wide_full_j <- merge(binned_wide_, coords, by = "reserve")
+
+wide_select_j <- wide_full[, c(1:4, 9:10)]
+
+
+wide_select_j$total_lizards <- rowSums(wide_select_j[2:4], na.rm = TRUE)
+
+wide_select_j$prop_mostly_larvae <- wide_select_j$`n.mostly larvae`/wide_select_j$total_lizards
+wide_select_j$prop_mostly_nymphs <- wide_select_j$`n.mostly nymphs`/wide_select_j$total_lizards
+wide_select_j$prop_both <- wide_select_j$`n.co-feeding`/wide_select_j$total_lizards
+
+unique(wide_select_j$prop_both)
+str(wide_select_j$prop_both)
+
+
+wide_select_j[is.na(wide_select_j)] <- 0
+
+
+```
+
+make base map
+```{r MAPPING STARTS HERE}
+world <- map_data('usa')  
+
+p <- ggplot(world, aes(long, lat)) +
+  geom_map(map = world, aes(map_id = region), fill = "grey90", color = "black") +
+  coord_quickmap() +
+  theme_void() +
+  coord_fixed(xlim = c(-123.5, -117), ylim = c(33, 39), ratio = 1.3) 
+
+```
+make specific map with only central points
+```{r}
+
+# remove points
+liz_april_full_coord_nopt <- liz_april_full_coord %>%
+  filter(reserve == "Hastings" | reserve == "Big Creek" | reserve == "Fort Ord")
+
+liz_may_full_coord_nopt <- liz_may_full_coord %>%
+  filter(reserve == "Hastings" | reserve == "Big Creek" | reserve == "Fort Ord")
+
+liz_june_full_coord_nopt <- liz_june_full_coord %>%
+  filter(reserve == "Hastings" | reserve == "Big Creek" | reserve == "Fort Ord")
+
+
+# make map
+qq <- ggplot(data = world, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "grey95", color = "black") +
+  coord_quickmap(xlim = c(-123, -118), ylim = c(33, 39.3)) +
+  theme_void() +
+  geom_point(data = liz_june_full_coord_nopt, aes(x = longitude, y = latitude, group = reserve), size = 2.8, color = "grey3")
+
+```
+give reserves abbrevaition for labeling
+```{r}
+wide_select_a$abbrev <- NA
+wide_select_a$abbrev <- recode_factor(wide_select_a$reserve, 
+                              "McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR")
+
+wide_select_m$abbrev <- NA
+wide_select_m$abbrev <- recode_factor(wide_select_m$reserve, 
+                              "McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR")
+
+wide_select_j$abbrev <- NA
+wide_select_j$abbrev <- recode_factor(wide_select_j$reserve, 
+                              "McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR")
+
+
+```
+
+make fake coordinates for labeling purposes
+```{r}
+wide_select_a$fake_latitude <- wide_select_a$latitude 
+wide_select_a$fake_longitude <- wide_select_a$longitude
+
+
+wide_select_a$fake_longitude[wide_select_a$reserve == "Quail Ridge"] <- (-122.1517 + .4)
+wide_select_a$fake_longitude[wide_select_a$reserve == "Hastings"] <- (-121.5477 + .48)
+wide_select_a$fake_latitude[wide_select_a$reserve == "Hastings"] <- (36.38845 + .2)
+wide_select_a$fake_latitude[wide_select_a$reserve == "Fort Ord"] <- (36.68491 + .5)
+wide_select_a$fake_longitude[wide_select_a$reserve == "Big Creek"] <- (-121.5983 - .53)
+wide_select_a$fake_latitude[wide_select_a$reserve == "Santa Cruz Island"] <- (34.00138)
+wide_select_a$fake_longitude[wide_select_a$reserve == "Santa Cruz Island"] <- (-119.7145 + .2)
+
+wide_select_m$fake_latitude <- wide_select_m$latitude 
+wide_select_m$fake_longitude <- wide_select_m$longitude
+
+
+wide_select_m$fake_longitude[wide_select_m$reserve == "Quail Ridge"] <- (-122.1517 + .4)
+wide_select_m$fake_longitude[wide_select_m$reserve == "Hastings"] <- (-121.5477 + .48)
+wide_select_m$fake_latitude[wide_select_m$reserve == "Hastings"] <- (36.38845 + .2)
+wide_select_m$fake_latitude[wide_select_m$reserve == "Fort Ord"] <- (36.68491 + .5)
+wide_select_m$fake_longitude[wide_select_m$reserve == "Big Creek"] <- (-121.5983 - .53)
+wide_select_m$fake_latitude[wide_select_m$reserve == "Santa Cruz Island"] <- (34.00138)
+wide_select_m$fake_longitude[wide_select_m$reserve == "Santa Cruz Island"] <- (-119.7145 + .2)
+
+wide_select_j$fake_latitude <- wide_select_j$latitude 
+wide_select_j$fake_longitude <- wide_select_j$longitude
+
+
+wide_select_j$fake_longitude[wide_select_j$reserve == "Quail Ridge"] <- (-122.1517 + .4)
+wide_select_j$fake_longitude[wide_select_j$reserve == "Hastings"] <- (-121.5477 + .48)
+wide_select_j$fake_latitude[wide_select_j$reserve == "Hastings"] <- (36.38845 + .2)
+wide_select_j$fake_latitude[wide_select_j$reserve == "Fort Ord"] <- (36.68491 + .5)
+wide_select_j$fake_longitude[wide_select_j$reserve == "Big Creek"] <- (-121.5983 - .53)
+wide_select_j$fake_latitude[wide_select_j$reserve == "Santa Cruz Island"] <- (34.00138)
+wide_select_j$fake_longitude[wide_select_j$reserve == "Santa Cruz Island"] <- (-119.7145 + .2)
+```
+
+final maps
+```{r}
+
+
+april_final <- qq +
+  geom_scatterpie(data = wide_select_a,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "white") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14)) +
+     scale_fill_manual(values = c("#4DAF4A", "#E41A1C","#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_a, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("April") +
+  guides(fill = FALSE)
+
+
+may_final <- qq +
+  geom_scatterpie(data = wide_select_m,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "white") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14)) +   
+  scale_fill_manual(values = c("#4DAF4A", "#E41A1C","#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_m, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("May") +
+  guides(fill = FALSE)
+
+
+june_final <- qq +
+  geom_scatterpie(data = wide_select_j,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "white") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 11)) +
+     scale_fill_manual(values = c("#4DAF4A","#E41A1C", "#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_j, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("June")  
+
+```
+
+put it all together!!!
+```{r}
+fig3 <- ggarrange(april_final + may_final + june_final,
+          common.legend = TRUE, legend = "bottom")
+
+library(ggpubr)
+ggsave(fig3, file = "manuscript_figs/pie.jpeg")
+```
+version 2 of this with black outlines
+
+
+```{r}
+april_final_2 <- qq +
+  geom_scatterpie(data = wide_select_a,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "black") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14)) +
+     scale_fill_manual(values = c("#4DAF4A", "#E41A1C","#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_a, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("April") +
+  guides(fill = FALSE)
+
+
+may_final_2 <- qq +
+  geom_scatterpie(data = wide_select_m,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "black") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14)) +   
+  scale_fill_manual(values = c("#4DAF4A", "#E41A1C","#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_m, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("May") +
+  guides(fill = FALSE)
+
+
+june_final_2 <- qq +
+  geom_scatterpie(data = wide_select_j,
+            aes(x = fake_longitude, y = fake_latitude), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+            pie_scale = 5, color = "black") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 11)) +
+     scale_fill_manual(values = c("#4DAF4A","#E41A1C", "#FF7F00"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+  geom_text(wide_select_j, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("June")  
+
+fig3.2 <- ggarrange(april_final_2 + may_final_2 + june_final_2,
+          common.legend = TRUE, legend = "bottom")
+
+library(ggpubr)
+ggsave(fig3.2, "manuscript_figs/pie_2.jpeg", dpi = 320)
+
+?ggsave()
+
+```
+
+with radius
+```{r}
+library(RColorBrewer)
+
+wide_select_a$radius <- wide_select_a$total_lizards
+wide_select_m$radius <- wide_select_m$total_lizards
+wide_select_j$radius <- wide_select_j$total_lizards
+ qq +
+  geom_scatterpie(data = wide_select_j,
+            aes(x = fake_longitude, y = fake_latitude, r = (.03*radius)), 
+            cols = c("prop_mostly_larvae", "prop_mostly_nymphs", "prop_both"),
+             pie_scale = 5,color = "white") +
+  labs(fill = "Lizard Burden") +
+  theme(legend.position = "bottom",
+        panel.border = element_rect(fill = NA),
+        plot.title = element_text(hjust = .5,face = "bold", size = 14),
+        legend.title = element_text(face = "bold", size = 12)) +
+   scale_fill_manual(values = c("#4DAF4A", "#FF7F00","#E41A1C"),labels = c("Mostly Larvae", "Equal", "Mostly Nymphs" ))+
+   #scale_fill_brewer(palette = "Set1", labels = c("Mostly Larvae", "Equal", "Mostly Nymphs"), direction = -1) +
+  geom_text(wide_select_j, mapping = aes(y = (fake_latitude + .5), x = fake_longitude, label = paste0(abbrev),
+                            group = abbrev, fontface = "bold"), size = 3, check_overlap = TRUE) +
+  ggtitle("June") +
+   guides(fill = guide_legend(title.position = "top"))
+```
+

@@ -1,0 +1,77 @@
+---
+title: "zooniverse_data_exports"
+output: html_document
+date: "2022-10-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# required packages
+#install.packages("tidyverse")
+
+library(tidyverse)
+library(tidyjson)
+library(magrittr)
+library(jsonlite)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(lubridate)
+```
+
+# Zooniverse data is in a weird format - we must fix
+
+```{r reading in data}
+jdata_unclean <- read.csv("project-ecotone-classifications_13oct22.csv", stringsAsFactors = FALSE) %>% 
+  View()
+
+
+```
+
+# flattening according to Georgia's code
+```{r flattening}
+jdata <- jdata_unclean %>% 
+  mutate(., created_at = ymd_hms(created_at)) %>% 
+  group_by(., workflow_id, workflow_version) %>% 
+  summarise(., max(created_at), n())  %>% 
+  View
+
+############### SURVEY TASK
+head(jdata)
+dim(jdata)
+
+## subset 
+#jdata2 <- subset(jdata, workflow_id == 13216) # i don't think this is necessary bc we only have one workflow
+
+
+## subset
+#jdata2 <- subset(jdata, workflow_id == 8574 | workflow_version > 100)
+#dim(jdata2)
+#head(jdata2)
+
+# 61 for psafari
+for (i in 1:8) {
+  jdata$annotations[i] %>% prettify %>% print
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

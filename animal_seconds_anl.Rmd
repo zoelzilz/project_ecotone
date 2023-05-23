@@ -1,0 +1,343 @@
+---
+title: "animal_seconds_anl"
+output: html_document
+date: "2022-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(vegan)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(here)
+```
+
+#We want to use the non-traditional method of animal-seconds (time spent at site) to answer some questions
+1. How many total animal seconds per site?
+2. Relationship between animal seconds and human seconds?
+3. Relationship between animal seconds and proxmity to humans?
+4. Same questions but for key species
+```{r getting data clean + ready}
+
+################# read in and clean ###################
+
+zoo_data <- read_csv(here("data/classifications24oct22_20748_filtered.csv"))
+
+
+zoo_clean <- zoo_data %>%
+  clean_names() %>% 
+  select(1:24) %>% # removing columns with the 8 filenames (kept one for when rows dont have sitedate)
+  filter(status == "C0 - concensus") %>% #this leaves us with only data that everyone agreed on the ID on 
+  select(5:22, 24) %>%   # now we remove columns we don't need like subject etc
+  select(-choice_v_f, -how_many_v_f, -sitedate) %>% 
+
+# later on in this process, the above code will likely take out too much and we will have to just deal with that when we come to it, probably in python
+
+# now i need to fix my own mess wherein i wrote filenames fucking differently
+  mutate(image1 = str_replace_all(image1, c("bc17apr22" = "bc_17apr22",
+                                    "bc28apr22" = "bc_28apr22",
+                                    "cove17apr22" = "cov_17apr22",
+                                    "gov17apr22" = "gov_17apr22", 
+                                    "nvs28apr22" = "nvs_28apr22",
+                                    "pb28apr22" = "pb_28apr22",
+                                    "pl17apr22" = "pl_17apr22",
+                                    "pp17apr22" = "pp_17apr22",
+                                    "gc28apr22" = "gc_28apr22",
+                                    "pd28apr22" = "pd_28apr22")
+                              )
+         ) %>%   # not sure why this is the syntax but for str_replace for a dataframe this is what works?
+  separate(image1, c("site", "date", "photonum"), sep = "_", remove = TRUE) %>%   # separates filename into site/date identifier and orig photo number
+  select(-photonum) %>% 
+  mutate(site = case_when(
+    site == "perb" ~ "pb",
+    site == "gc" ~ "gov",
+    TRUE ~ site
+  )) %>% # rename some shit that had multiple names
+  mutate(choice = case_when( 
+                choice == "COYOTE" ~ "Coyote",
+                choice =="RAT" ~ "Rat",
+                choice =="PIG" ~ "Pig",
+                choice =="GREATBLUEHERON" ~ "Heron",
+                choice =="MAMMALGENERAL" ~ "Unidentifiable Mammal",
+                choice =="DEER" ~"Deer",
+                choice =="MOUSERAT" ~ "Unidentifiable Rodent",
+                choice == "UNIDENTIFIABLE" ~ "Unidentifiable",
+                choice =="MOUSE" ~ "Mouse",
+                choice =="OPOSSUM" ~ "Opossum",
+                choice == "HUMAN" ~ "Human",
+                choice =="BIRDGENERAL" ~ "Unidentifiable Bird",
+                choice =="GREYFOX" ~ "Grey Fox",
+                choice =="TURKEYVULTURE" ~ "Turkey Vulture",
+                choice =="GULL" ~ "Gull",
+                choice =="RAPTOR" ~ "Bird of Prey",
+                choice =="SHOREBIRDSEABIRDGENERAL" ~ "Other Seabird",
+                choice =="PELICAN" ~ "Pelican",
+                choice =="DUCK" ~ "Duck",
+                choice =="EGRET" ~ "Egret",
+                choice =="BLACKBEAR" ~ "Bear",
+                choice =="BAT" ~ "Bat",
+                choice =="SNAKE" ~ "Snake",
+                choice =="OTHER" ~ "Unidentifiable",
+                choice == "CROWRAVEN" ~ "Corvid",
+                choice == "CONDOR" ~ "Condor",
+                choice == "STRIPEDSKUNK" ~ "Skunk",
+                choice =="BOBCAT" ~ "Bobcat",
+                choice =="COUGAR" ~ "Cougar",
+                choice =="LIZARD" ~ "Lizard")) # more clean names for species
+
+########################################################################################
+########################################################################################
+######### make table of animal activity (seconds = incidences) by species * site ###########
+zoo_count_species_site <- zoo_clean %>%
+  uncount(how_many, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>%   
+         # make a column for month later
+  count(site, choice) # makes a summary table of # animal-seconds per species per site per month
+########################################################################################
+
+######### make table of total animal activity (seconds = incidences) by site ###########
+zoo_count_site <- zoo_clean %>%
+  uncount(how_many, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>%   
+         # make a column for month later
+  count(site)
+########################################################################################
+
+######### make table of animal activity (seconds = incidences) by species summed across all sites ###########
+zoo_count_species <- zoo_clean %>%
+  uncount(how_many, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>%   
+         # make a column for month later
+  count(choice) # makes a summary table of # animal-seconds per species per site per month
+########################################################################################
+
+
+######### make table of animal activity (seconds = incidences) by site summed across all sites by date ###########
+zoo_count_sitedate <- zoo_clean %>%
+  uncount(how_many, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>%   
+         # make a column for month later
+  count(site, date) # makes a summary table of # animal-seconds per species per site per month
+########################################################################################
+
+
+# we're kind of cheating a little, not all sites represent cameras that were up for the same amount of time....
+```
+
+##Now that data is clean, we can visualize. 
+###First, animal sightings by site 
+###Then, animal sightings by species
+###Finally, make a map of pie charts breaking down species sightings in space
+```{r number of sightings by site of all animals}
+
+# set order of sites by distance from Jalama
+zoo_count_site$site <- factor(zoo_count_site$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+countbysite <- ggplot(zoo_count_site, aes(site, n)) +
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+  ylab("Number of Individual Sightings")+
+  xlab("Site - North to South")
+
+```
+
+```{r number of sightings by species}
+
+countbyspecies <- ggplot(zoo_count_species, aes(x = reorder(choice, -n), n)) +
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 30),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_blank())+
+  ylab("Number of Sightings")+
+  xlab("Species")
+
+```
+
+
+```{r stacked bar chart of species by site}
+
+zoo_count_species_site$site <- factor(zoo_count_species_site$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+zooplot <- ggplot(zoo_count_species_site, aes(site, n)) +
+  geom_bar(aes(fill = choice), # lets me make clustered bar chart
+           stat = "identity", # idk but necessary
+           #position = "dodge" # otherwise default is stacked barchart
+           )+
+  theme_classic()+ 
+  ylab("Number of Sightings")+
+  xlab("Sites North to South")+
+  theme(axis.text.x = element_blank(),
+    #axis.text.x = element_text(),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_text(size = 30))+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+
+ggsave('zooplot.png', zooplot, bg='transparent')
+
+```
+
+
+```{r human count by animal count}
+source("DataWrangling/human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
+
+hooman_clean <- hooman_count %>% 
+  #filter(date == "10may22" | date == "14may22" | date == "17apr22" | date == "28apr22" | date == "5apr22") %>% 
+  # we only wnt human counts that match the current timeline we're working with, may and april
+  mutate(site = case_when(
+    site == "perb" ~ "pb",
+    site == "gc" ~ "gov",
+    site == "gc2" ~ "gov",
+    TRUE ~ site
+  )) %>% 
+  filter(!is.na(site)) %>% 
+  group_by(site) %>% 
+  summarise(human = sum(n)) #gets total count of humans by site
+
+
+########################
+# merge human and animal data into one df
+########################
+
+humans_animals_site <- left_join(zoo_count_site, humancount_spring, all = TRUE) %>% 
+  replace_na(list(human = 0)) %>% 
+  pivot_longer(cols = n:human, names_to = "human_or_animal", values_to = "count") # pivot for ggplot (im crying)
+
+humans_animals_site$site <- factor(humans_animals_site$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+
+#### bar plot with both (shows us nothing)
+animals_people_site <- ggplot(humans_animals_site, aes(site, count, fill = human_or_animal )) +
+  geom_bar(stat = "identity", position = "dodge") + 
+  theme_classic()+
+  ylab("Number of Individual Sightings")+
+  xlab("Site - North to South")
+
+
+### scatter plot (also will likely show us nothing)
+
+animals_people_scatter <- humans_animals_site <- left_join(zoo_count_site, humancount_spring, all = TRUE) %>% 
+  replace_na(list(human = 0))
+
+scatter <- ggplot(animals_people_scatter, aes(human, n))+
+  geom_point()
+
+# plot barchart of just humans by site
+
+human_site <- ggplot(animals_people_scatter, aes(site, human)) +
+  geom_bar(stat = "identity") +
+  ylab("Number of Individual Sightings")+
+  xlab("Site - North to South")+
+  scale_y_continuous(expand = c(0, 0))+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_text(size = 30))
+  
+
+
+```
+
+# Now we make map with species pie charts
+
+```{r base map and data}
+library(maps)
+library(ggmap)
+library(scatterpie)
+library(basemaps)
+library(mapedit)
+
+########################### get base map ################################
+ 
+register_google(key = "AIzaSyBArxYrAlB60bafi6iGDYGtWox6ZIgylNg")
+
+map <- get_map(location = c(-120.4583875, 34.4678553), zoom = 13, maptype = "satellite", size = c(1000, 1000))
+
+#map <- draw_ext()
+#basemap_magick(ext, map_service = "osm_stamen", map_type = "watercolor")
+
+############################## fix data and add coordinates #############################
+
+# need to add coords manually
+
+# need to also calculate relative proportions that each species contributes to sightings at each site
+
+piecharts <- zoo_clean %>% 
+  group_by(site, choice) %>% 
+  summarise(count = n()) %>% 
+  mutate(prop = (count/sum(count))*100) %>% 
+  mutate(lat = case_when(
+    site == "bc" ~ 34.473854,
+    site == "cov" ~ 34.4446375,
+    site == "dam" ~ 34.450398,
+    site == "fort" ~ 34.470065, 
+    site == "gov" ~ 34.442691,
+    site == "nbc" ~ 34.460105,
+    site == "nvs" ~ 34.467715, 
+    site == "pb" ~ 34.451883,
+    site == "pd" ~ 34.451459, 
+    site == "pl"~ 34.451435,
+    site == "pb" ~ 34.451883, 
+    site == "pp" ~ 34.451174,
+    site == "vof" ~ 34.538088,
+    site == "vsc" ~34.540297
+  )) %>% 
+  mutate(lon = case_when(
+    site == "bc" ~ -120.475431,
+    site == "cov" ~ -120.4566805,
+    site == "dam" ~ -120.426794,
+    site == "fort" ~ -120.474388, 
+    site == "gov" ~ -120.45277,
+    site == "nbc" ~ -120.472345,
+    site == "nvs" ~ -120.473617, 
+    site == "pb" ~ -120.436957,
+    site == "pd" ~ -120.444986, 
+    site == "pl"~ -120.43358,
+    site == "pb" ~ -120.436957, 
+    site == "pp" ~ -120.431493,
+    site == "vof" ~ -120.538155,
+    site == "vsc" ~-120.543687
+  )) %>% 
+  select(!count) %>% 
+  pivot_wider(names_from = choice,
+              values_from = prop
+              ) %>%  # necessary to go wide for piechart
+  replace(is.na(.), 0) # NAs mess up piechart?
+```
+
+```{r actual pie chart map}
+
+piemap <- ggmap(map) +
+  geom_scatterpie(data = piecharts,
+                  aes(x= lon, y = lat),
+                  cols = c("Bird of Prey","Coyote","Deer","Grey Fox","Heron", "Human","Opossum","Turkey Vulture","Unidentifiable", "Unidentifiable Bird","Duck","Gull","Pelican", "Unidentifiable Mammal", "Bear","Egret", "Other Seabird","Pig","Bat","Snake","Unidentifiable Rodent", "Mouse","Rat","Skunk","Bobcat"),    #4:30,
+                  pie_scale = 5, color = "white")
+
+```
+
+

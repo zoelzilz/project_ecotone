@@ -1,0 +1,99 @@
+---
+title: "post-flattening zooniverse wrangling"
+output: html_document
+date: "2022-10-24"
+---
+Before running this code chunk, we flattened data using a series of python scripts written by Peter from Zooniverse. You need a flat, filtered dataset to begin using this code
+
+```{r setup, include=FALSE, packages}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("janitor")
+#install.packages("vegan")
+library(tidyverse)
+library(janitor)
+library(vegan)
+
+
+  
+```
+
+```{r data import}
+
+zoo_data <- read_csv("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/classifications24oct22_20748_filtered.csv") 
+
+zoo_clean <- zoo_data %>%
+  clean_names() %>% 
+  select(1:24) %>% # removing columns with the 8 filenames (kept one for when rows dont have sitedate)
+  filter(status == "C0 - concensus") %>% #this leaves us with only data that everyone agreed on the ID on 
+  select(5:22, 24) %>%   # now we remove columns we don't need like subject etc
+  select(-choice_v_f, -how_many_v_f, -sitedate) %>% 
+
+# later on in this process, the above code will likely take out too much and we will have to just deal with that when we come to it, probably in python
+
+# now i need to fix my own mess wherein i wrote filenames fucking differently
+  mutate(image1 = str_replace_all(image1, c("bc17apr22" = "bc_17apr22",
+                                    "bc28apr22" = "bc_28apr22",
+                                    "cove17apr22" = "cov_17apr22",
+                                    "gov17apr22" = "gov_17apr22", 
+                                    "nvs28apr22" = "nvs_28apr22",
+                                    "pb28apr22" = "pb_28apr22",
+                                    "pl17apr22" = "pl_17apr22",
+                                    "pp17apr22" = "pp_17apr22",
+                                    "gc28apr22" = "gc_28apr22",
+                                    "pd28apr22" = "pd_28apr22")
+                              )
+         ) %>%   # not sure why this is the syntax but for str_replace for a dataframe this is what works?
+  separate(image1, c("site", "date", "photonum"), sep = "_", remove = TRUE) %>%   # separates filename into site/date identifier and orig photo number
+  select(-photonum)
+
+
+  
+```
+
+```{r data vis}
+
+# lets visualize by site
+
+# fix later but the below "count" is wrong bc it doesn take into account the "how_many" column
+# in a different markdown, gonna duplicate rows by the number in that col
+zoo_vis <- zoo_clean %>%
+    uncount(how_many) %>%  # "uncounts" i.e. makes specified number of copies of the row. check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+  #group_by(site, date, choice) %>% #always necessary to summarize correctly
+  #summarize(n=) #we don't need to do anything but count 
+  # COUNT IS A DPLYR WAY TO DO THIS WITHOUT FYCKJIN GROUP BY AND SUMMARIZE
+  count(site, choice) # note we are leaving out date
+
+
+zooplot <- ggplot(zoo_vis, aes(site, n)) +
+  geom_bar(aes(fill = choice), # lets me make clustered bar chart
+           stat = "identity", # idk but necessary
+           #position = "dodge" # otherwise default is stacked barchart
+           )+
+  theme_classic()
+```
+
+
+We can source the human count script and check out relationship with human presence
+
+```{r animal seconds v human seconds}
+source("human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
+
+hooman_count <- hooman_count %>% 
+  select(!n) # gotta get rid of it cause it messes with full join
+
+# gotta get total animal seconds
+
+zoo_count <- zoo_clean %>% 
+  count(site) # gives us total animal count per site
+
+# now we're going to smash them together
+
+zooman <- left_join(zoo_count, hooman_count) %>%  #includes all rows in zoo_count
+  rename(human_seconds = seconds) %>% 
+  rename(animal_seconds = n)
+
+zooman_plot <- ggplot(zooman, aes(human_seconds, animal_seconds)) +
+  geom_point()
+```
+

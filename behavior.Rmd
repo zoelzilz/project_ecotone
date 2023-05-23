@@ -1,0 +1,110 @@
+---
+title: "behavior"
+output: html_document
+date: "2022-11-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(vegan)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+```
+
+# we need to fix the dataset so all of the behaviors are in the same column
+
+### goal is to end up with a column for primary_behavior, secondary_behavior, tertiary_behavior
+### and a column for night or day
+
+```{r getting data clean + ready}
+
+################# read in and clean ###################
+
+zoo_data <- read_csv("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/classifications24oct22_20748_filtered.csv") 
+
+
+behavior_data <- zoo_data %>%
+  clean_names() %>% 
+  select(1:24) %>% # removing columns with the 8 filenames (kept one for when rows dont have sitedate)
+  filter(status == "C0 - concensus") %>% #this leaves us with only data that everyone agreed on the ID on 
+  select(5:22, 24) %>%   # now we remove columns we don't need like subject etc
+  select(-choice_v_f, -how_many_v_f, -sitedate) %>% 
+
+# later on in this process, the above code will likely take out too much and we will have to just deal with that when we come to it, probably in python
+
+# now i need to fix my own mess wherein i wrote filenames fucking differently
+  mutate(image1 = str_replace_all(image1, c("bc17apr22" = "bc_17apr22",
+                                    "bc28apr22" = "bc_28apr22",
+                                    "cove17apr22" = "cov_17apr22",
+                                    "gov17apr22" = "gov_17apr22", 
+                                    "nvs28apr22" = "nvs_28apr22",
+                                    "pb28apr22" = "pb_28apr22",
+                                    "pl17apr22" = "pl_17apr22",
+                                    "pp17apr22" = "pp_17apr22",
+                                    "gc28apr22" = "gc_28apr22",
+                                    "pd28apr22" = "pd_28apr22")
+                              )
+         ) %>%   # not sure why this is the syntax but for str_replace for a dataframe this is what works?
+  separate(image1, c("site", "date", "photonum"), sep = "_", remove = TRUE) %>%   # separates filename into site/date identifier and orig photo number
+  select(-photonum) %>% 
+  mutate(site = case_when(
+    site == "perb" ~ "pb",
+    site == "gc" ~ "gov",
+    TRUE ~ site
+  )) %>% # rename some shit that had multiple names
+  mutate(choice = case_when( 
+                choice == "COYOTE" ~ "Coyote",
+                choice =="RAT" ~ "Rat",
+                choice =="PIG" ~ "Pig",
+                choice =="GREATBLUEHERON" ~ "Heron",
+                choice =="MAMMALGENERAL" ~ "Unidentifiable Mammal",
+                choice =="DEER" ~"Deer",
+                choice =="MOUSERAT" ~ "Unidentifiable Rodent",
+                choice == "UNIDENTIFIABLE" ~ "Unidentifiable",
+                choice =="MOUSE" ~ "Mouse",
+                choice =="OPOSSUM" ~ "Opossum",
+                choice == "HUMAN" ~ "Human",
+                choice =="BIRDGENERAL" ~ "Unidentifiable Bird",
+                choice =="GREYFOX" ~ "Grey Fox",
+                choice =="TURKEYVULTURE" ~ "Turkey Vulture",
+                choice =="GULL" ~ "Gull",
+                choice =="RAPTOR" ~ "Bird of Prey",
+                choice =="SHOREBIRDSEABIRDGENERAL" ~ "Other Seabird",
+                choice =="PELICAN" ~ "Pelican",
+                choice =="DUCK" ~ "Duck",
+                choice =="EGRET" ~ "Egret",
+                choice =="BLACKBEAR" ~ "Bear",
+                choice =="BAT" ~ "Bat",
+                choice =="SNAKE" ~ "Snake",
+                choice =="OTHER" ~ "Unidentifiable",
+                choice == "CROWRAVEN" ~ "Corvid",
+                choice == "CONDOR" ~ "Condor",
+                choice == "STRIPEDSKUNK" ~ "Skunk",
+                choice =="BOBCAT" ~ "Bobcat",
+                choice =="COUGAR" ~ "Cougar",
+                choice =="LIZARD" ~ "Lizard")) %>% # more clean names for species
+  uncount(how_many) %>% 
+  mutate(id = seq.int(nrow(.))) %>% # add an ID column for ease of dealing with pivoted shit
+  pivot_longer(cols = 2:10, names_to = "behavior") %>% # pivot out these stupid behavior columns, gives a lot of NAs
+  pivot_longer(cols = 2:5, names_to = "timeofday", values_to = "true") %>%  # pivot out time of day, same thing w/ NAs
+  drop_na(true) %>%  # remove row if the "true" column has an NA in it (aka there's no tod record)
+  
+
+### next thing we need to do is create a column where if the col "value" has a number in it, we take the cell value from "behavior" and keep that row, otherwise we write none??
+  
+  filter(value == 100) # just for now, we are cheating and taking out everything that doesnt have a 100 next to it
+
+```
+
+# create a summary table and some summary stats
+```{r behavior summary}
+
+behave_summ <- behavior_data %>% 
+  group_by(behavior) %>% 
+  count() 
+
+(71+13)/(sum(behave_summ$n) - 220)
+
+```
+

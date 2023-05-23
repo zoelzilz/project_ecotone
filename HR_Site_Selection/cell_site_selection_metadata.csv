@@ -1,0 +1,10 @@
+﻿ITEM,TYPE,DESCRIPTION
+lat,column header,latitude
+lon,column header,longitude
+att,column header,ranked AT&T cell service coverage from 0 (none) to 32 (maximum). NAs represent 0 cell coverage
+verizon,column header,ranked Verizon cell service coverage from 0 (none) to 32 (maximum). NAs represent 0 cell coverage
+wildlife_access_area,column header,"denotes an area that looks like it could be used by wildlife to access the beach. If numeric, the number corresponds with a numbered photo. Often includes notes on qualities of the site like presence of water, etc"
+human_access_area,column header,"denotes an area that is either a known or possible human access point. Often includes notes or the name of the access point, if known"
+service,column header,"binary indicator of whether or not a camera placed in this location would have adequate cell service. Cameras running on solar need at least 50% coverage, indicated by a 16 in either the 'att' or 'verizon' column"
+WAP,abbreviation,"stands for ""wildlife access area"""
+HAP,abbreviation,"stands for ""human access area"""

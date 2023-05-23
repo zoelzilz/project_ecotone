@@ -1,0 +1,158 @@
+---
+title: "vegan Package Community Analyses"
+output: html_document
+date: "2022-10-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(vegan)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+```
+# we want to do a set of community analyses of the cleaned Zooniverse data
+### keep in mind the zooniverse data must first be flattened in python and then cleaned 
+
+### Our questions are
+1. How many species?
+2. How many species by site?
+3. Evenness?
+4. Some visualization of community structure
+
+```{r getting data clean + ready}
+
+################# read in and clean ###################
+
+zoo_data <- read_csv("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/classifications24oct22_20748_filtered.csv") 
+
+zoo_clean <- zoo_data %>%
+  clean_names() %>% 
+  select(1:24) %>% # removing columns with the 8 filenames (kept one for when rows dont have sitedate)
+  filter(status == "C0 - concensus") %>% #this leaves us with only data that everyone agreed on the ID on 
+  select(5:22, 24) %>%   # now we remove columns we don't need like subject etc
+  select(-choice_v_f, -how_many_v_f, -sitedate) %>% 
+
+# later on in this process, the above code will likely take out too much and we will have to just deal with that when we come to it, probably in python
+
+# now i need to fix my own mess wherein i wrote filenames fucking differently
+  mutate(image1 = str_replace_all(image1, c("bc17apr22" = "bc_17apr22",
+                                    "bc28apr22" = "bc_28apr22",
+                                    "cove17apr22" = "cov_17apr22",
+                                    "gov17apr22" = "gov_17apr22", 
+                                    "nvs28apr22" = "nvs_28apr22",
+                                    "pb28apr22" = "pb_28apr22",
+                                    "pl17apr22" = "pl_17apr22",
+                                    "pp17apr22" = "pp_17apr22",
+                                    "gc28apr22" = "gc_28apr22",
+                                    "pd28apr22" = "pd_28apr22")
+                              )
+         ) %>%   # not sure why this is the syntax but for str_replace for a dataframe this is what works?
+  separate(image1, c("site", "date", "photonum"), sep = "_", remove = TRUE) %>%   # separates filename into site/date identifier and orig photo number
+  select(-photonum)
+
+
+#######################################
+# get in shape for vegan (wide)      #
+#######################################
+
+# need to get tidy dataset into sites as rownames and column headers as species with counts in cells
+
+zoo_count <- zoo_clean %>%
+  uncount(how_many, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>%   
+  count(site, choice) # makes a summary table of # animals per species per site
+
+veg_zoo <- zoo_count %>% 
+  pivot_wider(names_from = choice, # makes 'choice' (species) col into col headers
+              values_from = n, # and pulls counts from n col
+              values_fill = 0) %>%  # fills in zeros to the matrix
+  column_to_rownames("site")  #this is important for separating site names from count data (for matrix reasons idk)
+```
+
+Now we are ready to use vegan to calculate a bunch of community ecology metrics - the below taken from An Bui's vegan workshop.
+
+## How speciose are my communities?
+```{r richness}
+# we can use vegan to count species per site using specnumber() but we need to change the format to wide first
+
+sp.count <- specnumber(veg_zoo)
+
+# can't do much else until we have site data, which we might not ever have
+```
+
+
+### How diverse are my communities?
+```{r diversity}
+
+# vegan::diversity() will calculate shannon (default), simpson, and fisher indices
+shannondiv <- diversity(veg_zoo)
+# again creates named vector 
+
+```
+
+```{r shannon-diversity-plot}
+shandiv_df <- shannondiv %>% 
+  # convert named vector to dataframe
+  enframe()
+  
+  ####
+  # we arent going to do the below yet bc we don't have site metadata #
+  ####
+  
+  # join with metadata: this joins shandiv_df to site_type matching shandiv_df$name to site_type$site
+  #full_join(., site_type, by = c("name" = "site")) #%>% 
+  # then calculate mean diversity for each landtype
+  #group_by(landtype) %>% 
+  #summarize(mean = mean(value))
+
+shandiv_plot <- ggplot(shandiv_df, 
+                       aes(x= name, y = value)) +
+                       #aes(x = landtype, y = mean, fill = landtype)) +
+  geom_col()
+shandiv_plot
+```
+
+### How different are my communities in species composition?
+
+Ordination: each species is an axis along which your sites fall. Ordination compresses all these axes into 2
+There are many different ways to do this math (most of which require multiple samples per habitat type and we only have one sample per site)
+
+#### PCA
+
+There are as many PCs as there are columns in your matrix, but you can plot as many as you want... best to see what you can do with 2 or maybe 3 for best visualization
+
+```{r PCA}
+# Principal components analysis = a rotation of axes
+# redundancy analysis (rda) is an unconstrained ordination - the variation based ONLY on species data
+# a constrained ordination would ask how env variables shape community composition
+zooPCA <- rda(veg_zoo) #no env variables in here
+zooPCA
+# pay attention to the inertia term in output - inertia is all the variation in community composition that exists in your dataset
+
+summary(zooPCA)
+# this gives a big output of where species fall in the ordination (species scores and site scores) as well as importance of components - again components are made up just of spp abundances
+
+pcabiplot <- biplot(zooPCA)
+# this plot is not necessarily that informative
+# str(pcabiplot) : you have coordinates for points and for ends of arrows
+
+# can extract informative info from the biplot
+PCAscores <- as.data.frame(pcabiplot$sites) #%>% 
+  #bind_cols(site_type, .)
+
+PCAvect <- as.data.frame(pcabiplot$species)
+
+
+PCA_plot <- ggplot(PCAscores) +
+  geom_point(aes(x = PC1, y = PC2, 
+                 #color = landtype
+                 )) +
+  geom_segment(data = PCAvect, aes(x = 0, y = 0, xend = PC1, yend = PC2), #make segements coming out from origin
+               arrow = arrow(length = unit(0.2, "cm"))) + #arrow length indicates contribution to component
+              # sharp angle between arrows indicates correlation between species; 90 deg -> independence
+  geom_text(data = PCAvect, aes(x = PC1, y = PC2, label = rownames(PCAvect)))
+
+PCA_plot #expects linear response of species abundance to env variables - not always a valid assumption
+```

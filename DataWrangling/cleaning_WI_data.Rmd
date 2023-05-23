@@ -1,0 +1,187 @@
+---
+title: "cleaning wildlife insights data"
+output: html_document
+date: "2023-02-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(here)
+```
+
+
+Data Cleaning TO do:
+in common name column
+- replace chadriiformes + calidri species with shorebird
+- replace Neotoma species with sp
+
+remove all data with dates earlier than 2022
+UPDATE: fixed all dates in wildlife insights as of 23 feb 23
+
+UGH WI HAS MID-ID'D SOME DATES
+
+
+```{r data import}
+
+wild <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/WI_images23feb23.csv") %>% 
+  select(!c(project_id, image_id, location, wi_taxon_id, uncertainty, age, sex, animal_recognizable, individual_id, individual_animal_notes, highlighted, cv_confidence, license)) %>% 
+  mutate(timestamp = ymd_hms(timestamp)) %>% 
+  separate(timestamp, into = c('date', 'time'), sep=' ', remove = TRUE) %>% 
+  mutate(year = year(date)) %>% 
+  mutate(month = month(date, label = TRUE)) %>% 
+  uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>% 
+  filter(month != "Dec") %>% 
+  filter(year <= 2022) # eventually can take this out 
+
+unique(wild$deployment_id)
+
+```
+
+Summarize the data for some quick visualizations
+```{r making summary tables}
+
+species_site <- wild %>%
+  count(deployment_id, common_name) # makes a summary table of # animal-seconds per species per deployment_id per site
+########################################################################################
+
+######### make table of total animal activity (seconds = incidences) by deployment_id ###########
+count_site <- wild %>%
+  count(deployment_id)
+########################################################################################
+
+######### make table of animal activity (seconds = incidences) by species summed across all deployment_ids ###########
+count_species <- wild %>%
+  count(common_name) # makes a summary table of # animal-seconds per species per deployment_id per month
+########################################################################################
+
+
+######### make table of animal activity (seconds = incidences) by deployment_id by date ###########
+count_site_date <- wild %>%
+  count(deployment_id, month) # makes a summary table of # animal-seconds per species per deployment_id per month
+########################################################################################
+
+
+######### make table of animal activity (seconds = incidences) summed across all deployment_ids by date ###########
+count_month <- wild %>%
+  count(month) # makes a summary table of # animal-seconds per month
+########################################################################################
+
+```
+
+##Now that data is clean, we can visualize. 
+###First, animal sightings by site 
+###Then, animal sightings by species
+###Finally, make a map of pie charts breaking down species sightings in space
+```{r number of sightings by site of all animals}
+
+# set order of sites by distance from Jalama
+count_site$deployment_id <- factor(count_site$deployment_id, levels = c("Boathouse Cam", "Sudden Canyon Cam", "Old Fencepost Cam" , "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam","Cove Cam", "Govies Cliff Cam", "Big Cojo Cam"  ,"Percos Driftwood Cam" , "Percos Boat Cam","Percos Beach Cam", "Percos Log Cam" , "Percos Post Cam"  , "Damsite Creek Cam")) # arranged them north to south
+ 
+
+countbysite <- ggplot(count_site, aes(deployment_id, n)) +
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+   theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 10),
+        axis.text.y = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        axis.title.x = element_blank())+
+  ylab("Number of Individual Sightings")+
+  xlab("Site - North to South")
+
+```
+
+```{r number of sightings by species}
+
+countbyspecies <- ggplot(count_species, aes(x = reorder(common_name, -n), n)) +
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 7),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_blank())+
+  ylab("Number of Sightings")+
+  xlab("Species")
+
+```
+```{r number of sightings by month}
+
+countbymonth <- ggplot(count_month, aes(x = month, y = n)) +
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 7),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_blank())+
+  ylab("Number of Sightings")+
+  xlab("Month")
+
+```
+
+```{r stacked bar chart of species by site}
+
+# set order of sites by distance from Jalama
+species_site$deployment_id <- factor(species_site$deployment_id, levels = c("Boathouse Cam", "Sudden Canyon Cam", "Old Fencepost Cam" , "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam","Cove Cam", "Govies Cliff Cam", "Big Cojo Cam"  ,"Percos Driftwood Cam" , "Percos Boat Cam","Percos Beach Cam", "Percos Log Cam" , "Percos Post Cam"  , "Damsite Creek Cam")) # arranged them north to south
+
+stacked_spp_site <- ggplot(species_site, aes(deployment_id, n)) +
+  geom_bar(aes(fill = common_name), # lets me make clustered bar chart
+           stat = "identity", # idk but necessary
+           #position = "dodge" # otherwise default is stacked barchart
+           )+
+  theme_classic()+ 
+  ylab("Number of Sightings")+
+  xlab("Sites North to South")+
+  theme(axis.text.x = element_blank(),
+    #axis.text.x = element_text(),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_text(size = 30))
+
+```
+
+### We can also visualize human data by sourcing some previously written code
+```{r human data}
+source("DataWrangling/human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
+
+human_clean <- hooman_count %>% 
+  #filter(date == "10may22" | date == "14may22" | date == "17apr22" | date == "28apr22" | date == "5apr22") %>% 
+  # we only wnt human counts that match the current timeline we're working with, may and april
+  mutate(site = case_when(
+    site == "perb" ~ "Percos Beach Cam",
+    site == "gc" ~ "Government Point Cam",
+    site == "gc2" ~ "Government Point Cam",
+    site == "bc" ~ "Black Canyon Cam",
+    site == "big" ~ "Big Cojo Cam",
+    site == "boat" ~ "Percos Boat Cam",
+    site == "boatcam17apr22" ~ "Percos Boat Cam",
+    site == "bone" ~ "Boneyard Cam",
+    
+    TRUE ~ site
+  )) %>% 
+  filter(!is.na(site)) %>% 
+  group_by(site) %>% 
+  summarise(human = sum(n)) #gets total count of humans by site
+
+######################## merge human and animal data into one df ########################
+
+humans_animals_bysite <- left_join(count_site, human_clean, all = TRUE) %>% 
+  replace_na(list(human = 0)) %>% 
+  pivot_longer(cols = n:human, names_to = "human_or_animal", values_to = "count") # pivot for ggplot (im crying)
+
+humans_animals_site$site <- factor(humans_animals_site$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+```
+

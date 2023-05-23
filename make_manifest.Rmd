@@ -1,0 +1,70 @@
+---
+title: "Manifest"
+author: "Zoe"
+date: "5/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+#Making a manifest
+## this is necessary for importing files to Zooniverse
+## the goal is to get a dataframe with every single filename of every photo we are importing
+## subjects are rows, each subject has 8 photos
+
+## For my own edification, I want to also add a column that denotes location, site name, and date
+
+### the file path for the folder where the images currently are CANT stay the same -- /Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/Zooniverse_Metadata/....
+
+### the code below only applies to Spring2022. future code will be simpler because I'll try to be less of an idiot
+
+```{r}
+# we will use list.files() to find the filenames
+
+filenames <- list.files("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/animal_images_8/Spring2022",
+                        include.dirs = FALSE,
+                        full.names = FALSE,
+                        all.files = FALSE)
+
+
+manifest <- read.table(text = filenames)  %>% # turns filename char vec into dataframe
+  distinct() %>%    # removes dups which happen when drive creates temp files
+  
+  ## need to fix the fact that filenames are in two different formats because I'm an idiot and it's hard to batch fix shit like this outside of command line:
+  mutate(V2 = str_replace_all(V1, c("bc17apr22" = "bc_17apr22",
+                                    "bc28apr22" = "bc_28apr22",
+                                    "cove17apr22" = "cov_17apr22",
+                                    "gov17apr22" = "gov_17apr22", 
+                                    "nvs28apr22" = "nvs_28apr22",
+                                    "pb28apr22" = "pb_28apr22",
+                                    "pl17apr22" = "pl_17apr22",
+                                    "pp17apr22" = "pp_17apr22",
+                                    "gc28apr22" = "gc_28apr22",
+                                    "pd28apr22" = "pd_28apr22")
+                              )
+         ) %>%  # not sure why this is the syntax but for str_replace for a dataframe this is what works?
+  
+  separate(V2, c("site", "date", "photonum"), sep = "_", remove = FALSE) %>%  # separates filename into site/date identifier and orig photo number
+  mutate(photonum = str_remove(photonum, ".JPG"))  # remove the the .JPG from photonum
+  mutate(photonum = as.numeric(photonum)) %>% 
+  arrange(sitedate, photonum) %>% 
+  mutate(imgnum = rep_len(1:8, nrow(.))) %>%  # adds a column repeating 1:8 # CAROLINE SAYS YOU NEED THE DOT I HATE HER
+  mutate(subject = rep(1:(nrow(.)/8), each = 8)) %>%   # adds a column linking all images related to one subj together
+### now need to expand the dataframe long ways so that 1:8 are 8 different columns
+  # need to reorder the dataframe by sitedate and THEN photonum
+  select(!photonum) %>% # have to take photonum out because it adds a unique identifier to each photo which messes up pivot_wider
+  pivot_wider(names_from = imgnum, values_from = V1, names_prefix = "image") # creates a new column (image1-image8) for each of the 8 images per subject (V1 is the col of filenames)
+            
+
+
+
+
+
+  
+write_csv(manifest,"/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/animal_images/manifest.csv") # now we have a table of all the filenames as a csv
+```
+

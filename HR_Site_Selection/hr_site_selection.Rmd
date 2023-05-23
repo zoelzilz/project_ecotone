@@ -1,0 +1,216 @@
+---
+title: "HR Site Selection & Cell Coverage"
+output: html_document
+date: "2023-05-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(ggmap)
+library(janitor)
+library(ggrepel)
+```
+
+# Importing and Cleaning GPS data
+## From the Garmin first
+```{r cleaning garmin data}
+here()
+garmin_unclean <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/HR_Site_Selection/hr_gps_waypoints_may2023.csv") 
+
+garmin <- garmin_unclean %>% 
+  select(lon, lat, name) %>% # don't need other shit
+  mutate(type = case_when(
+    str_detect(name, "WAP") ~ "WAP",
+    str_detect(name, "HAP") ~ "HAP",
+    TRUE ~ "cell_coverage"
+  )) %>%  # creating a categorical column, might help later
+  mutate(name = case_when( # this is a very blunt force way to 'insert' a space between these spots where I forgot to add spaces
+    name == "A0V0" ~ "A0 V0",
+    name == "A0VO" ~ "A0 V0",
+    name == "A16V12" ~ "A16 V12",
+    name == "A0V12" ~ "A10 V12",
+    name == "A24V23" ~ "A24 V23",
+    name == "A20V17" ~ "A20 V17",
+    name == "A23V17" ~ "A23 V17",
+    name == "A26V22" ~ "A26 V22",
+    TRUE ~ name)) %>% 
+  #separate(name, c("att", "verizon")) # doesn't work bc att and verizon aren't always in the same order
+  separate_wider_regex(name, c(att = "A\\d+", " ", verizon = "V*\\d+"), too_few = "debug")
+
+# i give up. time for excel
+
+write_csv(garmin, "garmin_data2023.csv")
+
+```
+
+Gave up, used Excel to fix, reimporting CSV below:
+
+```{r with manually edited garmin data csv}
+
+garmin1 <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/HR_Site_Selection/garmin_data2023_edited.csv")
+
+garmin2 <- garmin1 %>% 
+  mutate(service = case_when(att >= 16 | verizon >= 16 ~ "yes",
+                             type != "cell_coverage" ~ NA,
+                             TRUE ~ "no"))%>% 
+  mutate(wildlife_access_area = case_when(str_detect(name, "WAP") ~ name,
+                                          TRUE ~ "no")) %>% 
+  mutate(human_access_area = case_when(str_detect(name, "HAP") ~ name, 
+                                          TRUE ~ "no")) %>% 
+  select(!c(name, type)) %>% 
+  select(lat, lon, att, verizon, wildlife_access_area, human_access_area, service) # just to reorder
+
+
+```
+
+
+## Then from Fieldmaps (way cleaner)
+
+```{r fieldmaps data}
+
+fm1 <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/HR_Site_Selection/HollisterRanch_cell_coverage_0.csv")
+
+fm <- fm1 %>%
+  clean_names() %>% 
+  select(latitude, longitude, att_signal, verizon_signal, wildlife_access_area, human_access_area) %>% 
+  rename(lat = latitude, 
+         lon = longitude,
+         att = att_signal,
+         verizon = verizon_signal) %>% 
+  mutate(service = case_when(att >= 16 | verizon >= 16 ~ "yes",
+                             TRUE ~ "no")) 
+  
+```
+
+## smash em together with rbind
+
+```{r rbind}
+
+hr_combined <- rbind(fm, garmin2) %>% 
+  filter(!is.na(service))
+
+hrcombined2 <- rbind(fm, garmin2)
+
+as.data.frame(hrcombined2)
+
+write_csv(hrcombined2, "cell_site_selection.csv")
+
+```
+
+## Making a new dataset just with human and wildlife access points
+
+```{r access point dataset}
+
+#### all access points ####
+
+aps <- hrcombined2 %>% 
+  filter(!c(is.na(wildlife_access_area) & 
+              is.na(human_access_area))) %>% 
+  filter(!c(human_access_area == "no" &
+              wildlife_access_area == "no"))
+
+#### make a wildlife access points datasheet ####
+
+waps <- aps %>% 
+  filter(!c(wildlife_access_area == "no" | is.na(wildlife_access_area))) %>% 
+  select(!human_access_area)
+
+#### make a labels datasheet ####
+
+labls <- aps %>% 
+  filter(!c(human_access_area == "no" | is.na(human_access_area))) %>% 
+  select(!wildlife_access_area) %>% 
+  filter(!str_detect(human_access_area, "HAP")) %>% 
+  filter(!str_detect(human_access_area, "Sea")) %>% 
+  filter(!str_detect(human_access_area, "rip")) %>%
+  filter(!str_detect(human_access_area, "Maybe")) %>% 
+  filter(!str_detect(human_access_area, "Yes")) %>% 
+  filter(!str_detect(human_access_area, "NOTE")) %>% 
+  filter(!str_detect(human_access_area, "pass")) %>%
+  # adding some labels manually, probably a better way to do this
+  add_row(lat =34.45960, lon = -120.3404, human_access_area = "Test Site 1", service = "yes") %>% 
+  add_row(lat = 34.47100, lon = -120.2949, human_access_area = "Test Site 2", service = "yes") %>% 
+  add_row(lat = 34.466889, lon = -120.305866, human_access_area = "Drake's Beach", service = "yes") 
+  
+
+```
+
+
+## Finally mapping
+
+```{r map!}
+register_google(key = "AIzaSyBArxYrAlB60bafi6iGDYGtWox6ZIgylNg")
+# had to register a key with personal email because the zilz@ucsb.edu one is all on the fritz about billing nonsense SO
+
+
+hrmap <- get_googlemap(center = c(-120.325, 34.46), # setting boundary later
+                       zoom = 12, maptype = "hybrid")
+
+hr_cell <- ggmap(hrmap) +
+  geom_point(data = hr_combined, aes(x = lon, y = lat, colour = service))+
+  # messing with the legend
+  scale_color_discrete(name = "Cell Service Coverage")+
+  # wildlife access points added in to cross check which sites might be good
+  #geom_text_repel(data = waps, color = "white", aes(label = wildlife_access_area))+
+  scale_y_continuous(limits=c(34.44, 34.48))+
+  scale_x_continuous(limits = c(-120.37, -120.25)) +
+  # adding in access points
+  geom_point(data = waps, aes(x = lon, y = lat, shape = 2), colour = "black") + 
+  scale_shape_identity(guide = "legend",
+                       name = NULL,
+                       labels = "Potential Trap Sites")+
+                       
+  geom_label_repel(data = labls, aes(label = human_access_area), 
+                   min.segment.length = 0,
+                   force = 200,
+                   segment.color = "white"
+                   )+
+  theme_bw()+
+  theme(legend.position = c(0.9,0), 
+        legend.direction = "vertical",
+        legend.justification = c(0.9,0),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 8))
+  
+  
+
+hr_cell
+
+ggsave("hr_cell.png", hr_cell, width = 10, units = "in")
+
+```
+Looking at the maps and doing some choosing, looks like WAP19 and WAP 15 are good test spots. Adding those in to the "labls" dataframe to label them on the map along with the beaches.
+
+## David wants a map with only the test sites labeled
+
+```{r map with test sites only}
+
+#### making a mini dataframe (one day i will learn to subset in ggplot) ####
+labls2 <- labls %>% 
+  slice(5,6) # just want rows 5 and 6
+
+hr_test <- ggmap(hrmap) +
+  
+  scale_y_continuous(limits=c(34.44, 34.48))+
+  scale_x_continuous(limits = c(-120.37, -120.25)) +
+  
+  # adding in test site points
+  geom_point(data = labls2, aes(x = lon, y = lat), colour = "red")+
+  geom_label_repel(data = labls2, aes(label = human_access_area), 
+                   min.segment.length = 0,
+                   force = 200,
+                   segment.color = "white"
+                   )+
+  theme_bw()
+  
+  
+
+hr_test
+
+ggsave("hr_test.png", hr_test, width = 10, units = "in")
+
+```
+

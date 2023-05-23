@@ -1,0 +1,37 @@
+,GOOGLE MYMAP:,,https://www.google.com/maps/d/u/0/edit?hl=en&mid=1FeqNsZcjbWEQWxN2aM6sAWiOqfBDQgju&ll=34.44518159039065%2C-120.45620842030237&z=17,,,,,,,,,,,
+location,camera name,filename abbreviation,Potential or Placed?,lon,lat,ele,time,waypoint #,old name,Camera Source,Date Placed,Infrastructure,Image Location,Notes
+JLDP,Percos Driftwood Cam,pd,placed,-120.444986,34.451459,0.914154,2022-03-06T20:25:16Z,205,PERCOS CAM1,CRC Donated,6-Mar-22,sturdy log of driftwood in dune grass,https://drive.google.com/file/d/1NYD1E9OLYu8r7brsE77v23Y-CZyIktVz/view?usp=sharing,moved slightly 13 mar 22
+JLDP,Percos Boat Cam,boat,placed,-120.445674,34.450395,1.38069,2022-03-06T20:35:12Z,206,PERCOS CAM2,CRC Donated,6-Mar-22,strapped to boat wreck,https://drive.google.com/file/d/1NYsmLsWjSlFy9NTENKNYp9GuvUsaCr5F/view?usp=sharing,changed cameras 13 mar 22
+JLDP,Govies Cam,gov,placed,-120.45277,34.446176,0.993702,2022-03-06T22:25:48Z,213,GOVIES CAM1,CRC Donated,6-Mar-22,Signpost,https://drive.google.com/file/d/1N_WcRYBWlihybAQN9gnDHIask2C-tB_u/view?usp=sharing,"MOVED to driftwood inside creek drainage // Camera placed on existing signpost, might be too high"
+JLDP,Percos Log Cam,pl,placed,-120.43358,34.451435,5.661922,2022-03-06T21:04:53Z,209,POTENTIAL,CRC Donated,13-Mar-22,creosote log on its side,https://drive.google.com/file/d/1NGpASYtSXqkIekuXn2epNUBI7s6psDGK/view?usp=sharing,Camera strapped to top of downed creosote log in the dune grass
+JLDP,Percos Post Cam,pp,placed,-120.431493,34.451174,5.309565,2022-03-06T21:10:11Z,210,WOOD POST,CRC Donated,13-Mar-22,creosote post,https://drive.google.com/file/d/1NIxJ8Nd0VYgd8qcbPlbPH4Gr7Jkcvv3H/view?usp=sharing,"camera strapped to existing, standing creosote post at the edge of vegetation"
+JLDP,North Beach Fort Cam,nbf,placed,-120.474388,34.470065,-7.617104,2022-03-13T22:54:32Z,218,NA,CRC Donated,13-Mar-22,Attached to a wood post that's part of a ruined beach fort,https://drive.google.com/file/d/1N617gx5lD1mv_vNMY2I2a122_BjoRQKL/view?usp=sharing,
+JLDP,Cove Cam,cove,placed,-120.4566805,34.4446375,NA,NA,forgot to take,NA,CRC Donated,13-Mar-22,strapped to a boulder above mean high water,https://drive.google.com/file/d/1ND9esy7lue4huh720d3NFnaNErTkiLie/view?usp=sharing,praying that this stays in place
+JLDP,Black Canyon Cam,bc,placed,-120.475431,34.473854,0.908168,2022-03-13T22:02:14Z,216,NB CANYON CAM,CRC Donated,13-Mar-22,horizonal thick driftwood log in mouth of spring,https://drive.google.com/file/d/1NAbSwVGKlqltvgYWpKQWOfZwZgiMjHDN/view?usp=sharing,
+JLDP,Damsite Creek Cam,dc,placed,-120.426794,34.450398,5.103902,2022-03-06T21:21:01Z,212,POTENTIAL,CRC Loaned,17 Apr 22,T Post Needed,https://drive.google.com/file/d/1NLLUT2qnFbHWvId1JqR-niuvCqfv3fvG/view?usp=sharing,want to place T post at the edge of the drainage/slough
+JLDP,Government Point Cam 1,gp,placed,-120.452425,34.442691,-0.558647,2022-02-17T20:04:20Z,198,POTENTIAL3,CRC Loaned,17 Apr 22,T Post Needed,https://drive.google.com/file/d/1NZu_Y3DCL5D67DCeROg_6Tp4izeWGyXm/view?usp=sharing,"only need one of these sites, whichever is better for placing T-Post"
+JLDP,North Vista Spring Cam,nvs,placed,-120.473617,34.467715,0.728981,2022-02-17T20:57:06Z,200,APTENTIAL4,CRC Loaned,17 Apr 22,T Post Needed,https://drive.google.com/file/d/1NdrgLqJoP6ZhU-cNf5hHmCptK_Rdl-pP/view?usp=sharing,want to place T post adjacent to (south) North Vista Spring drainage at the mouth of a small canyon parallel to the ocean OR at top of burm (only have photo of burm)
+JLDP,Percos Beach Cam,pb,placed,-120.436957,34.451883,6.436166,2022-03-06T20:54:51Z,207,POTENTIALL,CRC Loaned,17 Apr 22,T Post Needed,https://drive.google.com/file/d/1NJ_JfYVeEcCk89CIxyrSyQG8vRO2rqKy/view?usp=sharing,post to be placed on flat area of grass to south of game trail/drainage
+JLDP,North Seawall Cam,wall,approved,-120.479758,34.480814,-4.676851,2022-03-13T22:26:38Z,217,SEAWALL HOLE,CRC Donated,13-Mar-22,drill into wall or place in hole?,https://drive.google.com/file/d/1NU-DTpo4STe0HZJH_w-ASF7rr_I4temv/view?usp=sharing,
+JLDP,North Beach Canyon Cam,nbc,placed,-120.472345,34.460105,NA,NA,NA,NA,CRC Donated,28-Apr-22,existing sign pole,,next to Bren project cam but facing a different direction
+JLDP,Jalama Cam,jal,potential,-120.500367,34.50692,,,,,,,T Post Needed,,
+JLDP,Jalama 2 Cam,jaltwo,potential,-120.499625,34.505078,,,,,,,T Post Needed,,
+JLDP,Cojo Cam,coj,potential,-120.4991,34.503762,,,,,,,T Post Needed,,
+JLDP,Cojo 2 Cam,cojtwo,potential,-120.498887,34.503387,,,,,,,T Post Needed,,
+JLDP,Cojo 3 Cam,cojthr,potential,-120.498428,34.502267,,,,,,,T Post Needed,,
+JLDP,Cojo 4 Cam,cojfor,potential,-120.497963,34.501155,,,,,,,T Post Needed,,
+JLDP,Cojo Canyon Cam,coca,potential,-120.49685,34.498108,,,,,,,T Post Needed,,
+VSFB,Sudden Canyon Cam,vsc,Placed,34.540297,-120.543687,NA,NA,NA,VANDY1,CRC Donated,20-Apr-22,Driftwood,,
+VSFB,Old Fencepost Cam,vof,Placed,34.538088,-120.538155,NA,NA,NA,VANDY2,CRC Donated,20-Apr-22,old fence post,,
+VSFB,Jolluru Cam,vj,Potential,34.536237,-120.534867,NA,NA,NA,,,,stick pounded into ground,,
+VSFB,Short Canyon Cam,vshc,Potential,34.534763,-120.531503,NA,NA,NA,,,,need T-post,,
+VSFB,Morida Cam,vm,Potential,34.543781,-120.556447,NA,NA,NA,,,,need T-post,,
+VSFB,RIZ Cam,vriz,Potential,34.5412739,-120.5523943,NA,NA,NA,,,,need T-post,,near parking spot
+,REDUNDANT,,REDUNDANT,-120.433785,34.451404,-4.521734,2022-03-13T19:11:17Z,215,LOGCAM,,13-Mar-22,,,
+,Government Point Cam 2,,backup,-120.452121,34.442981,-1.975937,2022-02-17T20:07:44Z,199,POTENTIAL3B,,NA,T Post Needed,https://drive.google.com/file/d/1NdSSMXi5kuWX9mZXYkB7kp1dWf99a0M2/view?usp=sharing,"only need one of these sites, whichever is better for placing T-Post"
+,Damsite Creek Cam,,backup,-120.427577,34.45058,5.910692,2022-03-06T21:18:24Z,211,DRIFTWOOD,,NA,"sturdy driftwood, backup plan",no photo,backup plan for Damsite if T Post placement is not allowed
+,Cliff Cam,,REMOVED,-120.458833,34.445016,12.372693,2022-03-06T22:34:58Z,214,GOVIES CAM2,,6-Mar-22,,,MOVED TO COVE SOUTH OF CLIFF - renamed Cove Cam
+,,,not needed,-120.444833,34.451544,3.068504,2022-02-17T22:08:48Z,202,POT5NTIAL5B,,NA,NA,,
+,,,not needed,-120.445018,34.451318,1.792129,2022-02-17T22:11:36Z,203,NA,,NA,NA,,
+,,,not needed,-120.444993,34.451316,1.791557,2022-02-17T22:11:40Z,204,NA,,NA,NA,,
+,,,not needed,-120.433992,34.451305,6.584484,2022-03-06T21:02:27Z,208,TPOST,,NA,NA,,
