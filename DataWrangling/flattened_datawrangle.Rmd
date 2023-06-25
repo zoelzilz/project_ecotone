@@ -20,7 +20,7 @@ library(vegan)
 
 ```{r data import}
 
-zoo_data <- read_csv("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/classifications24oct22_20748_filtered.csv") 
+zoo_data <- read_csv(here("/Users/zoe/Documents_Local/GitHub/project_ecotone/data/classifications24oct22_20748_filtered.csv")) 
 
 zoo_clean <- zoo_data %>%
   clean_names() %>% 
@@ -96,4 +96,5 @@ zooman <- left_join(zoo_count, hooman_count) %>%  #includes all rows in zoo_coun
 zooman_plot <- ggplot(zooman, aes(human_seconds, animal_seconds)) +
   geom_point()
 ```
+
 

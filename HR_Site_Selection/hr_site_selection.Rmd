@@ -18,7 +18,7 @@ library(ggrepel)
 ## From the Garmin first
 ```{r cleaning garmin data}
 here()
-garmin_unclean <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/HR_Site_Selection/hr_gps_waypoints_may2023.csv") 
+garmin_unclean <- read_csv("hr_gps_waypoints_may2023.csv") 
 
 garmin <- garmin_unclean %>% 
   select(lon, lat, name) %>% # don't need other shit
@@ -50,7 +50,7 @@ Gave up, used Excel to fix, reimporting CSV below:
 
 ```{r with manually edited garmin data csv}
 
-garmin1 <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/HR_Site_Selection/garmin_data2023_edited.csv")
+garmin1 <- read_csv("garmin_data2023_edited.csv")
 
 garmin2 <- garmin1 %>% 
   mutate(service = case_when(att >= 16 | verizon >= 16 ~ "yes",
