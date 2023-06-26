@@ -27,7 +27,7 @@ UGH WI HAS MID-ID'D SOME DATES
 
 ```{r data import}
 
-wild <- read_csv("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/WI_images23feb23.csv") %>% 
+wild <- read_csv(here("data/WI_images23feb23.csv")) %>% 
   select(!c(project_id, image_id, location, wi_taxon_id, uncertainty, age, sex, animal_recognizable, individual_id, individual_animal_notes, highlighted, cv_confidence, license)) %>% 
   mutate(timestamp = ymd_hms(timestamp)) %>% 
   separate(timestamp, into = c('date', 'time'), sep=' ', remove = TRUE) %>% 
@@ -182,6 +182,19 @@ humans_animals_bysite <- left_join(count_site, human_clean, all = TRUE) %>%
   pivot_longer(cols = n:human, names_to = "human_or_animal", values_to = "count") # pivot for ggplot (im crying)
 
 humans_animals_site$site <- factor(humans_animals_site$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+```
+
+## Want to grab some numbers on coyotes only
+
+```{r coyote stuff}
+
+coyote <- wild %>% 
+  filter(common_name == "Coyote") %>% 
+  distinct(date, time, .keep_all = TRUE) # only keep unique combos of date and time to reduce the 8x thing
+
+coyote_sum <- coyote %>% 
+  count()
 
 ```
 

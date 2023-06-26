@@ -21,7 +21,7 @@ library(janitor)
 
 ################# read in and clean ###################
 
-zoo_data <- read_csv("/Volumes/GoogleDrive/My Drive/SCHOOL/PHD_AT_UCSB/GitHub/Project_Ecotone/data/classifications24oct22_20748_filtered.csv") 
+zoo_data <- read_csv(here("data/classifications24oct22_20748_filtered.csv"))
 
 
 behavior_data <- zoo_data %>%
@@ -105,6 +105,17 @@ behave_summ <- behavior_data %>%
   count() 
 
 (71+13)/(sum(behave_summ$n) - 220)
+
+```
+
+```{r coyote behavior only}
+
+coyote_summ <- behavior_data %>% 
+  filter(choice == "Coyote") %>% 
+  group_by(behavior) %>% 
+  count() 
+
+
 
 ```
 
