@@ -17,7 +17,7 @@ library(vegan)
 ############################
 # data import from filenames
 ############################
-filenames <- list.files("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/people_images",
+filenames <- list.files("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/people_images/10",
                         include.dirs = FALSE,
                         full.names = FALSE,
                         all.files = FALSE)
@@ -31,26 +31,19 @@ hooman <- read.table(text = filenames)  %>% # turns filename char vec into dataf
   filter(!row_number() %in% 1 ) %>%  #why is THIS THE ONLY WAY TO REMOVE ONE FUCKING ROW
   filter(!grepl("IMG", V1)) %>%  # i guess grepl() is an alternative to str_detect?? taking out all unnamed (oops)
   
-  ## need to fix the fact that filenames are in two different formats because I'm an idiot and it's hard to batch fix shit like this outside of command line:
-  mutate(V2 = str_replace_all(V1, c("bc17apr22" = "bc_17apr22",
-                                    "bc28apr22" = "bc_28apr22",
-                                    "cove17apr22" = "cov_17apr22",
-                                    "gov17apr22" = "gov_17apr22", 
-                                    "nvs28apr22" = "nvs_28apr22",
-                                    "pb28apr22" = "pb_28apr22",
-                                    "pl17apr22" = "pl_17apr22",
-                                    "pp17apr22" = "pp_17apr22",
-                                    "gc28apr22" = "gc_28apr22",
-                                    "pd28apr22" = "pd_28apr22",
-                                    "boatcam17apr22" = "boat_17apr22")
-  )
-  ) %>%  # not sure why this is the syntax but for str_replace for a dataframe this is what works?
-  
-  separate(V2, c("site", "date", "photonum"), sep = "_", remove = FALSE) %>%  # separates filename into site/date identifier and orig photo number
+  separate(V1, c("site", "date", "photonum"), sep = "_", remove = FALSE) %>%  # separates filename into site/date identifier and orig photo number
   mutate(photonum = str_remove(photonum, ".JPG")) %>%   # remove the the .JPG from photonum
   mutate(photonum = as.numeric(photonum)) %>% 
   arrange(site, date, photonum) %>% 
-  select(site, date, photonum)
+  select(site, date, photonum) %>%   
+  mutate(site = case_when(site == "coj" ~ "coja",
+                          site == "rizn" ~ "vrizn",
+                          site == "rizs" ~ "vrizs",
+                          site == "wall" ~ "sea",
+                          .default = as.character(site)
+                                  )
+  )
+  
 
 #we can ignore the below, even though it would make things slightly easier. later we can just divide human seconds by 8
 
@@ -66,4 +59,6 @@ hooman <- read.table(text = filenames)  %>% # turns filename char vec into dataf
 
 hooman_count <- hooman %>% 
   count(site, date) %>% 
-  mutate(seconds = n/8)
+  mutate(seconds = n/10)
+
+write_csv(hooman_count, "human_activity_10.csv")
