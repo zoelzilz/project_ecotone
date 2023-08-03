@@ -17,7 +17,7 @@ library(vegan)
 ############################
 # data import from filenames
 ############################
-filenames <- list.files("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/people_images/10",
+filenames_10 <- list.files("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.edu/My Drive/SCHOOL/PHD_AT_UCSB/GaviotaCameraTrapping/Zooniverse/people_images/10",
                         include.dirs = FALSE,
                         full.names = FALSE,
                         all.files = FALSE)
@@ -26,7 +26,7 @@ filenames <- list.files("/Users/zoe/Library/CloudStorage/GoogleDrive-zilz@ucsb.e
 # then clean and make summary table of human seconds per site
 ##############################################################
 
-hooman <- read.table(text = filenames)  %>% # turns filename char vec into dataframe
+hooman_10 <- read.table(text = filenames_10)  %>% # turns filename char vec into dataframe
   distinct() %>%     # removes dups which happen when drive creates temp files
   filter(!row_number() %in% 1 ) %>%  #why is THIS THE ONLY WAY TO REMOVE ONE FUCKING ROW
   filter(!grepl("IMG", V1)) %>%  # i guess grepl() is an alternative to str_detect?? taking out all unnamed (oops)
@@ -57,8 +57,8 @@ hooman <- read.table(text = filenames)  %>% # turns filename char vec into dataf
 
 # get a nice summary table of counts of humans per site
 
-hooman_count <- hooman %>% 
+hooman_count_10 <- hooman_10 %>% 
   count(site, date) %>% 
   mutate(seconds = n/10)
 
-write_csv(hooman_count, "human_activity_10.csv")
+#write_csv(hooman_count, "human_activity_10.csv")

@@ -79,3 +79,29 @@ hooman_count <- hooman %>%
 
 ```
 
+
+Going to try to use magick tesseract to extract date/time data from images
+https://cran.r-project.org/web/packages/tesseract/vignettes/intro.html#Language_Data
+https://johnpvanek.weebly.com/intothephrag/extracting-text-from-camera-trap-photos
+
+```{r install and load packages}
+
+library(tesseract) #OCR package
+library(magick) # image processing package
+library(here)
+
+```
+
+testing using one test image
+```{r test images}
+
+test_1 <- image_read(here("test_image_recon.JPG")) %>% 
+  #image_resize("2000x") %>%
+  image_convert(type = 'Grayscale') %>%
+  #image_trim(fuzz = 40) %>%
+  #image_write(format = 'png', density = '300x300')
+  ocr()
+
+
+```
+

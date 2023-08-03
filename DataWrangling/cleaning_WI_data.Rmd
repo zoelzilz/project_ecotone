@@ -25,56 +25,81 @@ UPDATE: fixed all dates in wildlife insights as of 23 feb 23
 UGH WI HAS MID-ID'D SOME DATES
 
 
-```{r data import}
+```{r data import updated august 2023}
 
-wild <- read_csv(here("data/WI_images23feb23.csv")) %>% 
+wild <- read_csv(here("data/WI_images3aug2023.csv")) %>% 
   select(!c(project_id, image_id, location, wi_taxon_id, uncertainty, age, sex, animal_recognizable, individual_id, individual_animal_notes, highlighted, cv_confidence, license)) %>% 
   mutate(timestamp = ymd_hms(timestamp)) %>% 
   separate(timestamp, into = c('date', 'time'), sep=' ', remove = TRUE) %>% 
   mutate(year = year(date)) %>% 
   mutate(month = month(date, label = TRUE)) %>% 
+  mutate(deployment_id = str_remove(deployment_id, regex(" cam", ignore_case = T))) %>% # remove Cam from site name so it matches other datasets; regex necessary for ignore_case
   uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
           # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
           
           .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
           ) %>% 
-  filter(month != "Dec") %>% 
+  #filter(month != "Dec") %>% not sure why we were removing december but no longer need to
   filter(year <= 2022) # eventually can take this out 
 
 unique(wild$deployment_id)
 
 ```
+## If we want to take it a step further, we can sort out all of the IDs that didn't get it down to genus or species for accurate species richness analysis
+
+```{r create dataframe of species specific IDs only}
+
+wild_spec <- wild %>% 
+  filter(!is.na(species)) %>% 
+  filter(species!= "No CV Result")
+
+# make one that allows up to genus
+
+wild_gen <- wild %>% 
+  filter(!is.na(genus))%>% 
+  filter(genus!= "No CV Result")
+
+
+# i want the genus specific dataset for later analysis
+
+write_csv(wild_gen, "WI_IDs_togenus.csv")
+
+```
+
+
 
 Summarize the data for some quick visualizations
 ```{r making summary tables}
 
-species_site <- wild %>%
+species_site <- wild_spec %>%
   count(deployment_id, common_name) # makes a summary table of # animal-seconds per species per deployment_id per site
 ########################################################################################
 
 ######### make table of total animal activity (seconds = incidences) by deployment_id ###########
-count_site <- wild %>%
+count_site <- wild_spec %>%
   count(deployment_id)
 ########################################################################################
 
 ######### make table of animal activity (seconds = incidences) by species summed across all deployment_ids ###########
-count_species <- wild %>%
+count_species <- wild_spec%>%
   count(common_name) # makes a summary table of # animal-seconds per species per deployment_id per month
 ########################################################################################
 
 
 ######### make table of animal activity (seconds = incidences) by deployment_id by date ###########
-count_site_date <- wild %>%
+count_site_date <- wild_spec %>%
   count(deployment_id, month) # makes a summary table of # animal-seconds per species per deployment_id per month
 ########################################################################################
 
 
 ######### make table of animal activity (seconds = incidences) summed across all deployment_ids by date ###########
-count_month <- wild %>%
+count_month <- wild_spec %>%
   count(month) # makes a summary table of # animal-seconds per month
 ########################################################################################
 
 ```
+
+
 
 ##Now that data is clean, we can visualize. 
 ###First, animal sightings by site 

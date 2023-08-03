@@ -1,0 +1,26 @@
+---
+title: "esa_analyses_viz"
+output: html_document
+date: "2023-08-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Goals for ESA
+
+### Visualize mammalian community over all sites
+### Visualize mammalian behavior over all sites
+### Mammalian community and human activity, if time
+
+```{r data import and cleaning}
+
+mammals <- read_csv(here("data/WI_IDs_togenus.csv")) %>% 
+  filter(class == "Mammalia") %>% 
+  separate(behavior, c("behavior1", "behavior2"), sep = ",", remove = TRUE) # separates out behaviors if there are multiple
+
+
+humans <- read_csv(here("data/human_activity.csv"))
+```
+
