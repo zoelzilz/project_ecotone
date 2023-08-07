@@ -306,6 +306,26 @@ mammal_behavior <- mammals %>%
          )) %>% 
   group_by(ID) %>% 
   count(behavior1) # COUNT BEHAVIOR PER SPEICES
+
+##### % of behaviors that is food related #####
+
+all_behavior <- mammal_behavior %>% 
+  group_by(behavior1) %>% 
+  summarise(sum(n)) %>% 
+  rename(totals = 'sum(n)')
+
+# i cannot for the life of me figure out how to hardcode a conditional sum
+
+#eating <- if(all_behavior$behavior1 == c("eating", "foraging")){
+#             sum(all_behavior$totals)}
+
+# the clunkiest way that I hate:
+ugh <- sum(all_behavior[which(all_behavior[,1] == "carrying food" | all_behavior[,1] == "eating" | all_behavior[,1] == "foraging" | all_behavior[,1] == "hunting"  ),2])
+# syntax : apply sum to condition - (dataframe[which(dataframe[,col#] *condition or series of conditions*), ,col# to sum])
+
+total <- sum(all_behavior$totals)
+
+percent_food_behaviors <- ugh/total
   
 ##### plot another stacked bar chart #####
 
@@ -345,7 +365,7 @@ behavior_stacked <- ggplot(mammal_behavior, aes(ID, n)) +
   ) 
   
 
-ggsave('behavior_stacked.png', stacked, width = 12, height = 7, bg='transparent')
+ggsave('behavior_stacked.png', behavior_stacked, width = 12, height = 7, bg='transparent')
 
 ```
 
