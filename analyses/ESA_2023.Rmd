@@ -264,6 +264,8 @@ humans_mammals <- humans_by_site %>%
 
 humanvmammals <- ggplot(humans_mammals, aes(human_count, total_mammals)) +
   geom_point()
+
+## work in progress... may not include this guy or just run some anovas idk
                           
 
 
