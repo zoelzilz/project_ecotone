@@ -33,6 +33,7 @@ wild <- read_csv(here("data/WI_images3aug2023.csv")) %>%
   separate(timestamp, into = c('date', 'time'), sep=' ', remove = TRUE) %>% 
   mutate(year = year(date)) %>% 
   mutate(month = month(date, label = TRUE)) %>% 
+  mutate(day = day(date)) %>% 
   mutate(deployment_id = str_remove(deployment_id, regex(" cam", ignore_case = T))) %>% # remove Cam from site name so it matches other datasets; regex necessary for ignore_case
   uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
           # we are basically multipling the number seconds of animal activity by the number of animals in the capture - this is fine...
@@ -62,7 +63,7 @@ wild_gen <- wild %>%
 
 # i want the genus specific dataset for later analysis
 
-write_csv(wild_gen, "WI_IDs_togenus.csv")
+write_csv(wild_gen, here("data/WI_IDs_togenus.csv"))
 
 ```
 

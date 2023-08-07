@@ -6,21 +6,344 @@ date: "2023-08-03"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(vegan)
+library(here)
+library(RColorBrewer)
+library(Polychrome) #package to make palettes witha shit ton of distinct colors
+
 ```
 
-## Goals for ESA
+# Goals for ESA
 
 ### Visualize mammalian community over all sites
 ### Visualize mammalian behavior over all sites
 ### Mammalian community and human activity, if time
 
+## Data Import
 ```{r data import and cleaning}
 
 mammals <- read_csv(here("data/WI_IDs_togenus.csv")) %>% 
   filter(class == "Mammalia") %>% 
-  separate(behavior, c("behavior1", "behavior2"), sep = ",", remove = TRUE) # separates out behaviors if there are multiple
+  separate(behavior, c("behavior1", "behavior2"), sep = ",", remove = TRUE) %>%  # separates out behaviors if there are multiple
+  # going to make some assumptions about IDs here:
+  mutate(ID = case_when(common_name == "Canis Species" ~ "Coyote",
+                        common_name == "Cervus Species" ~ "Mule Deer",
+                        common_name == "Odocoileus Species" ~ "Mule Deer",
+                        common_name == "Elk" ~ "Mule Deer", # def not an elk
+                        common_name == "Vulpes Species" ~ "Grey Fox",
+                        common_name == "Lepus Species" ~ "Brush Rabbit", 
+                        common_name == "Domestic Cat" ~ "Bobcat", # double checked, def a bobcat
+                        common_name == "Domestic Pig" ~ "Feral Hog", 
+                        common_name == "Wild Boar" ~ "Feral Hog",
+                        common_name == "Sus Species" ~ "Feral Hog",
+                        common_name == "Neotoma Species" ~ "Rat",
+                        common_name == "Martes Species" ~ "Weasel",
+                        common_name == "Ursus Species" ~ "American Black Bear",
+                        common_name == "Nutria" ~ "Rat", # for now, until we determine if that thing is actually a nutria!
+                        common_name == "Western Gray Squirrel" ~ "California Ground Squirrel",
+                        common_name == "Brown Rat" ~ "Rat",
+                        common_name == "Kit Fox" ~ "Coyote", # def not a kit fox 
+                        common_name == "White-tailed Deer" ~ "Mule Deer",
+                        common_name == "Domestic Cattle" & deployment_id == "Jalama 2" ~ "Feral Hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
+                        common_name == "White-tailed Jackrabbit" ~ "Coyote",
+                        common_name == "Black-tailed Jackrabbit" ~ "Coyote", # checked and all jackrabbit IDs are coyotes
+                        .default = as.character(common_name)
+                        )
+         ) %>% 
+# need to remove sheep, mouflon?? and other weird IDs
+  filter(ID != "Mouflon", 
+         ID != "Domestic Sheep",
+         ID != "Equus Species",
+         ID != "Domestic Dog",
+         ID != "Domestic Horse") %>% 
+  filter(year != (2017))
 
 
-humans <- read_csv(here("data/human_activity.csv"))
+# for my edification, I want to know how many trap days per camera (below is months bc im messing around)
+
+deployment <- mammals_adjusted %>% 
+  group_by(deployment_id) %>% 
+  
+  summarise(startmonth = month(min(date), label = TRUE),
+            endmonth = month(max(date), label = TRUE))
+
+
+humans <- read_csv(here("data/human_activity.csv")) %>% 
+  mutate(site = case_when(site == "cove" ~ "Cove",
+                          .default = as.character(site))) # I'm sure there are more errors
+```
+### Start with some basic figures, first off frequency distribution of sightings by species:
+
+```{r number of sightings by species}
+
+######### make table of mammal activity (seconds = incidences) by species summed across all deployment_ids ###########
+count_species <- mammals%>%
+  count(ID) # makes a summary table of # animal-seconds per species per deployment_id per month
+
+######### plot #########
+
+countbyspecies <- ggplot(count_species, aes(x = reorder(ID, -n), n)) + # reorders so that it displays bars in descending order of count
+  geom_bar(stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10),
+        axis.title.x = element_blank())+
+  ylab("Number of Sightings")+
+  xlab("Species")
+
+
+### saving ####
+
+png("ESA2023_species_freq.png", width = 8, height = 6, units = "in", pointsize = 12, res = 1000)
+countbyspecies
+dev.off()
+
+# can also use ggsave
+
+```
+
+
+## Now we need a stacked bar chart of species north to south (because thats what I did last time)
+### might be supplanted by map with pie chart
+
+```{r stacked bar chart}
+##### new dataframe #####
+
+count_species_site <- mammals %>% 
+  count(deployment_id, ID) 
+  
+##### just realized I should probably adjust for trap nights/days per site for all of this ####
+## note: doing it this way will either over or underestimate the number of days because it doesnt take into account any "down" days or the actual start and end date even if there were no captures. gonna leave it for now because it's a better approx than nothing
+
+count_species_site_adj <- mammals %>% 
+  group_by(deployment_id) %>% 
+  mutate(trapdays = max(date) - min(date)) %>% 
+  group_by(deployment_id, trapdays) %>% 
+  count(ID) %>% 
+  mutate(adjusted_count = n/as.numeric(trapdays))
+
+##### arrange sites  north to south  #####
+
+count_species_site_adj$deployment_id <- factor(count_species_site$deployment_id, levels = c("Boathouse", "Ladrones", "Saucito", "Water Canyon", "Not Water Canyon", "Morida","RIZ", "RIZ Backup", "RIZ S", "Sudden Canyon", "Old Fencepost", "Jolluru", "Short Canyon", "Jalama", "Jalama 2", "Cojalama", "Cojo Gate", "Cojo Canyon", "seawall", "Black Canyon", "North Beach Fort", "North Vista Spring", "North Beach Canyon", "Boneyard", "Cove", "Govies Cliff", "Big Cojo", "Percos Boat", "Percos Driftwood", "Percos Beach", "Percos Log", "Percos Post", "Damsite Creek")) 
+
+##### create color palette #####
+
+IDcolors <- alphabet.colors(16)
+swatch(IDcolors)
+names(IDcolors) <- NULL # necessary for ggplot to remove the names so it can assign colors correctly?
+
+##### make stacked barplot horiz #####
+
+stacked <- ggplot(count_species_site_adj, aes(deployment_id, adjusted_count)) +
+  geom_bar(aes(fill = ID), # lets me make clustered bar chart
+           stat = "identity", # idk but necessary
+           #position = "dodge" # otherwise default is stacked barchart
+           )+
+  scale_fill_manual(values = IDcolors)+
+  theme_classic()+ 
+  coord_flip() + # make it horizontal because its easier to vis
+  scale_y_reverse(lim = c(15,0))+ # puts bars on the right side instead of the left
+  #temporarily limiting x axis for better visualization of shorter bars, need to reverse order of coords
+  scale_x_discrete(lim= rev) + # orients sites north to south instead of south to north
+  
+  ylab("Sightings Adjusted by Number of Trap Nights")+
+  xlab("Sites North to South")+
+  theme(#axis.text.y = element_blank(),
+        axis.text.y = element_text(angle = 45, hjust = 1, size = 7), # only keep in for my own visualization
+        axis.text.x = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_blank())+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  ) 
+  
+
+ggsave('stacked.png', stacked, width = 12, height = 7, bg='transparent')
+
+```
+
+
+
+## I want a nice map
+
+```{r base map and data}
+library(maps)
+library(ggmap)
+library(scatterpie)
+library(basemaps)
+library(mapedit)
+
+####### import camera metadata #######
+
+cams <- read_csv(here("data/camera_metadata.csv")) %>% 
+  clean_names() %>% 
+  select(location, camera_name, camera_brand, lon, lat, habitat_adjacent, habitat_secondary, iz_type) %>% 
+  mutate(deployment_id = str_remove(camera_name, regex(" cam", ignore_case = T))) %>% 
+  mutate(deployment_id = case_when(camera_name == "Government Point Cam 1" ~ "Govies Cliff",
+                                   .default = as.character(deployment_id))) 
+
+########################### get base map ################################
+ 
+register_google(key = "AIzaSyBArxYrAlB60bafi6iGDYGtWox6ZIgylNg")
+
+basemap <- get_map(location = c(-120.5, 34.46), zoom = 12, maptype = "terrain", size = c(1000, 1000))
+
+sitemap <- ggmap(basemap) +
+  geom_point(aes(x = lon, y = lat), data = cams)
+
+justsites <- ggplot() +
+  geom_point(aes(x = lon, y = lat, size = 10), data = cams) +
+  theme_void()
+
+ggsave('sitemap.png', sitemap)
+
+ggsave("justsites.png", justsites, bg = 'transparent')
+
+```
+
+## What about people?
+
+### Visualize people
+```{r people viz}
+
+##### fix dataframe #####
+
+humans_by_site <- humans %>% 
+  group_by(site) %>% 
+  summarise(count = sum(n)) %>% 
+  filter(site != "2.JPG")
+  #mutate() # cannot remember what i was rtying to do here
+
+##### quick viz #####
+
+humans_by_site$site <- factor(humans_by_site$site , levels = c("Boathouse", "Ladrones", "Saucito", "Water Canyon", "Not Water Canyon", "Morida","RIZ North", "RIZ N Backup", "RIZ South", "Sudden Canyon", "Old Fencepost", "Jolluru", "Short Canyon", "Jalama", "Jalama 2", "Cojalama", "Cojo Gate", "Cojo Canyon", "Seawall", "Black Canyon", "North Beach Fort", "North Vista Spring", "North Beach Canyon", "Boneyard", "Cove", "Government Point", "Big Cojo", "Percos Boat", "Percos Driftwood", "Wood Canyon","Percos Beach", "Percos Log", "Percos Post", "Damsite")) 
+
+
+human_graph <- ggplot(humans_by_site, aes(site, count)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))# only keep in for my own visualizatio
+
+
+```
+
+### humans vs animals
+```{r relationship between people and animal sightings by site}
+
+##### yet another dataframe ######
+humans_mammals <- humans_by_site %>% 
+  rename(deployment_id = site,
+         human_count = count)  %>% 
+  # rename damsite, govies, seawall, and all rizs so they match
+  mutate(deployment_id = case_when(
+    deployment_id == "Government Point" ~ "Govies Cliff",
+    deployment_id == "Seawall" ~ "seawall",
+    deployment_id == "RIZ N Backup" ~ "RIZ Backup",
+    deployment_id == "RIZ North" ~ "RIZ",
+    deployment_id == "RIZ South" ~ "RIZ S",
+    deployment_id == "Damsite" ~ "Damsite Creek",
+    .default = as.character(deployment_id)
+  )) %>% 
+  left_join(count_species_site) %>% 
+  group_by(deployment_id) %>% 
+  mutate(total_mammals = sum(n))
+
+
+
+##### plot humans v mammals #####
+
+humanvmammals <- ggplot(humans_mammals, aes(human_count, total_mammals)) +
+  geom_point()
+                          
+
+
+```
+
+## vegan community analyses
+```{r community analyses}
+
+##### need to first transform the count data into a matrix of #species sightings per site
+
+mammals_matrix <- count_species_site %>% 
+  pivot_wider(names_from = ID, # makes 'ID' (species) col into col headers
+              values_from = n, # and pulls counts from n col
+              values_fill = 0) %>%  # fills in zeros to the matrix
+  column_to_rownames("deployment_id")  #this is important for separating site names from count data (for matrix reasons idk)
+
+```
+
+## Visualization of Behavior 
+#### what are the animals doing?
+
+```{r behavior}
+
+###### NEW DATAFRAME ######
+
+mammal_behavior <- mammals %>% 
+  filter(identified_by != "Computer vision") %>%  #computer doesnt identify behavior so we take it out
+  filter(!is.na(behavior1)) %>% 
+  mutate(behavior1 = tolower(behavior1)) %>% #make all lower case
+  mutate(behavior1 = case_when(behavior1 == "foragin" ~ "foraging",
+                               behavior1 == "foraging in riz" ~ "foraging",
+                               behavior1 == "close to camera" ~ "walking",
+                               behavior1 == "standing" ~ "standing still",
+                               str_detect(behavior1, "carrying") ~ "carrying food",
+                               str_detect(behavior1, "eating") ~ "foraging",
+                               str_detect(behavior1, "hunting") ~ "hunting",
+                               .default = as.character(behavior1)
+         )) %>% 
+  group_by(ID) %>% 
+  count(behavior1) # COUNT BEHAVIOR PER SPEICES
+  
+##### plot another stacked bar chart #####
+
+##### create color palette #####
+
+IDcolors <- alphabet.colors(16)
+swatch(IDcolors)
+names(IDcolors) <- NULL # necessary for ggplot to remove the names so it can assign colors correctly?
+
+##### make stacked barplot horiz #####
+
+behavior_stacked <- ggplot(mammal_behavior, aes(ID, n)) +
+  geom_bar(aes(fill = behavior1), # lets me make clustered bar chart
+           stat = "identity", # idk but necessary
+           #position = "dodge" # otherwise default is stacked barchart
+           )+
+  scale_fill_manual(values = IDcolors)+
+  theme_classic()+ 
+  coord_flip() + # make it horizontal because its easier to vis
+  scale_y_reverse()+ # puts bars on the right side instead of the left
+  scale_x_discrete(lim= rev) + # orients sites north to south instead of south to north
+  
+  ylab("Sightings of Behaviors")+
+  xlab("Species")+
+  theme(#axis.text.y = element_blank(),
+        axis.text.y = element_text(angle = 45, hjust = 1, size = 7), # only keep in for my own visualization
+        axis.text.x = element_text(size = 20),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_blank())+
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  ) 
+  
+
+ggsave('behavior_stacked.png', stacked, width = 12, height = 7, bg='transparent')
+
 ```
 
