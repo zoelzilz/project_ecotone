@@ -256,7 +256,12 @@ humans_mammals <- humans_by_site %>%
   )) %>% 
   left_join(count_species_site) %>% 
   group_by(deployment_id) %>% 
-  mutate(total_mammals = sum(n))
+  mutate(total_mammals = sum(n)) %>% 
+  group_by(deployment_id) %>% 
+  mutate(human_rank = human_count[which.max(human_count)]) %>% # this works for some reason
+  ungroup() %>% 
+  mutate(human_rank = dense_rank(human_rank)) 
+  #mutate(human_rank = dense_rank(human_count, ties.method = "first"))
 
 
 
@@ -265,9 +270,23 @@ humans_mammals <- humans_by_site %>%
 humanvmammals <- ggplot(humans_mammals, aes(human_count, total_mammals)) +
   geom_point()
 
-## work in progress... may not include this guy or just run some anovas idk
-                          
+humanmammals_bar <- ggplot(humans_mammals, aes(human_rank, total_mammals)) +
+  geom_bar(stat= "identity")
 
+##### create color palette #####
+
+IDcolors <- alphabet.colors(16)
+swatch(IDcolors)
+names(IDcolors) <- NULL # necessary for ggplot to remove the names so it can assign colors correctly?
+
+humanmammals_stacked <- ggplot(humans_mammals, aes(human_rank, n)) +
+  geom_bar(stat = "sum", aes(fill = ID)) +
+  scale_fill_manual(values = IDcolors) +
+  theme_classic()
+
+## work in progress... may not include this guy or just run some anovas idk
+
+ggsave("stacked_by_people.png", humanmammals_stacked)
 
 ```
 
