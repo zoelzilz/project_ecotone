@@ -1,0 +1,24 @@
+---
+title: "Mammal Activity Summary"
+output: html_document
+date: "2024-07-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(vegan)
+library(here)
+library(RColorBrewer)
+library(Polychrome) #package to make palettes witha shit ton of distinct colors
+```
+
+# Catch All Markdown for Mammal Community and Activity Summary Figures and Stats
+
+## Pull and Clean Data
+```{r}
+
+```
+

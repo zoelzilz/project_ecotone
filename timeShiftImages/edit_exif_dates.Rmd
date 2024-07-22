@@ -1,0 +1,48 @@
+---
+title: "edit_exif"
+output: html_document
+date: "2024-03-31"
+---
+
+## going to attempt to use exiftoolr to edit the incorrect dates on images
+### some helpful (maybe) how-tos:
+https://www.r-bloggers.com/2022/10/editing-metadata-in-trail-camera-images-using-r-magick-and-exiftool/
+https://www.thomasvanhoey.com/post/changing-photo-metadata-with-r/
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("exiftoolr") #https://cran.r-project.org/web/packages/exiftoolr/exiftoolr.pdf
+
+# should use locally installed version of exiftool that we installed 3/31/2024
+
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(exiftoolr)
+
+# some he
+```
+
+## scratch the above, turns out there's maybe a package for this?? which uses exiftool
+https://groups.google.com/g/camtrapr
+https://rdrr.io/cran/camtrapR/man/camtrapR-package.html
+https://besjournals-onlinelibrary-wiley-com.proxy.library.ucsb.edu/doi/full/10.1111/2041-210X.12600
+https://cran.r-project.org/web/packages/camtrapR/vignettes/camtrapr1.pdf
+
+I'm following the documentation in the last link, and I think it requires me to change my file structure so that the functions can look in a specific directory starting with /rawImages, and then subdirectories including each station
+So in the directory for this particular markdown (set below) I've created a rawImages folder with a folder in it called /sacate that has all the images in it
+
+*I think the future workflow for this* will be to copy the incorrect images from the external hard drive into our working directory, change them in situ, and then copy them back after corrections to the xhd in a new folder called correct_date_[deployment]
+
+```{r camtrapr}
+#install.packages("camtrapR")
+library(camtrapR)
+
+setwd("/Users/zoe/Documents_Local/GitHub/project_ecotone/timeShiftImages")
+
+?timeShiftImages
+
+
+```
+
