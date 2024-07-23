@@ -1,0 +1,224 @@
+---
+title: "Mammunity vs Humans"
+output: html_document
+date: "2024-07-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(hms)
+library(janitor)
+library(vegan)
+library(here)
+library(RColorBrewer)
+library(Polychrome) #package to make palettes witha shit ton of distinct colors
+```
+
+# Mammal Activity Modeling ~ Humans
+
+## Pull and Clean Data
+```{r data import and cleaning}
+
+mammals_unclean <- read_csv(here("data/WI_data_22jul2024/image_classifications_edited_23jul24.csv")) # had to manually paste in some NVS photos with the correct date 23 jul 2024
+
+
+mammals <- mammals_unclean %>%
+  filter(class == "Mammalia") %>% 
+  filter(!identified_by == "Computer vision") %>%  # removes about 11k rows, some of them from hollister anyway
+  
+  # ugh annoying unclean inconsistent capitals
+  mutate(filename = tolower(filename)) %>% 
+  
+  # ugh ugh the filenames where i forgot to put a "_"
+  mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "boatcam17apr22", "boat_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "pb28apr22 ", "pb_28apr22 ")) %>% 
+  mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "nvs28apr22 ", "nvs_28apr22 ")) %>% 
+  
+  # also inconsistent sitenames:
+  mutate(sitename = case_when(deployment_id == "Boneyard 09/07/2022" ~ "Boneyard Cam",
+                              deployment_id == "Old Fencepost Cam April 2022" ~ "Old Fencepost Cam",
+                              deployment_id == "Percos Post March 2022" ~ "Percos Post Cam",
+                              deployment_id == "seawall cam" ~ "Seawall Cam",
+                              deployment_id == "Boathouse May - July 2022" ~ "Boathouse Cam",
+                              .default = as.character(deployment_id))) %>% 
+  
+  mutate(deployment_id = paste0(str_extract(filename, "[^_]*_[^_]*"))) %>%  # return only the first 2 substrings (e.g. cam name and dmy) of the filenames - this is very sloppy and I hate it but oh well
+
+  uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number captures of animals by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) %>% 
+  mutate(common_name = tolower(common_name)) %>% 
+  
+  # take out non-wildlife
+  filter(common_name != "domestic cattle",
+         common_name != "human",
+         common_name != "human-camera trapper",
+         common_name != "human-pedestrian",
+         common_name != "domestic dog"
+         )
+
+
+```
+
+## Fix Messed Up Dates in Dataset
+```{r fixing dates}
+
+# we will first pull out just the incorrect dates, which are luckily all before 2020
+fix_dates <- mammals %>% 
+    ## make the dates nice
+  mutate(year = year(timestamp)) %>% 
+  filter(year<2021)
+
+# now we need to figure out what the corrections are, and for that we will need this dataset: https://docs.google.com/spreadsheets/d/1-gLml8H2stC2Va9H42tWLylx-5f1r8m4BDMKnsBUHl8/edit?usp=sharing (downloaded csv of one tab)
+timestamp_corrections1 <- read_csv(here("data/incorrect_timestamps.csv")) 
+
+timestamp_corrections <- timestamp_corrections1 %>% 
+  rename(deployment_id = filename) %>% 
+  mutate(real_start = as.POSIXct(real_start, tz=Sys.timezone())) %>% 
+  mutate(recorded_start = as.POSIXct(recorded_start, tz=Sys.timezone())) %>% 
+  mutate(real_end = as.POSIXct(real_end, tz=Sys.timezone())) %>% 
+  mutate(recorded_end = as.POSIXct(recorded_end, tz=Sys.timezone())) %>% 
+  #mutate(real_start = as.Date(real_start, format = "%m/%d/%y"))
+  
+  mutate(correction = difftime(real_start, recorded_start, units = "mins")) %>%  #gives us the # minutes to add to the recorded time to correct the timestamp
+  select(deployment_id, correction)
+
+#test_correct <- timestamp_corrections %>% 
+#  mutate(calculated_end = recorded_end + correction) # it works!!
+
+# now we can apply to the timestamp on each incorrect date, I hope!
+
+## by matching on deployment ID
+fixed_dates <- left_join(fix_dates, timestamp_corrections, by = join_by(deployment_id)) %>%  # pop the correction time in to the deployments it applies to
+  # overwrite timestamp column with correct date
+  mutate(timestamp = timestamp + correction) %>% 
+  select(!c(correction, year)) # take these bad bois out
+  
+
+# join the two datasets back together!
+mammals_correctdates <- mammals %>% 
+  filter(year(timestamp)>2021) # need to remove the bad dates from the original dataset
+
+## and do some downstream cleaning like removing useless columns
+mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>% 
+  select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects) %>% 
+  mutate(day = day(timestamp)) %>% 
+  mutate(month = month(timestamp)) %>% 
+  mutate(year = year(timestamp)) %>% 
+  separate(timestamp, c("date", "time"), sep = " ") 
+
+```
+
+## We should add in some metadata for sorting and analysis purposes
+
+```{r add in metadata}
+
+metadata <- read_csv(here("data/site_metadata.csv")) %>% 
+  clean_names() %>% 
+  filter(!str_detect(camera_id, "2")) %>%  # removing second cameras from the metadata (these were placed when the originals were stolen, but in the same place)
+  select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
+  rename(sitename = station)
+
+mammals_clean <- left_join(mammals_fixed_dates, metadata, by = join_by(sitename)) %>% 
+  filter(!is.na(property)) # right now (23 jul) this filters out HROA data because there's not metadata for those cams
+
+```
+
+## Planned Initial Analyses
+- response variable: mean animal activity (count of occurrences) across all species and across entire study (binned by month to create site-wise mean)
+- effect variables of interest: distance from Jalama, above or below Point Conception (barrier to human movement from Jalama)
+- random variables: species, month
+
+
+## First run t-test to look for differences in activity above and below PC 
+
+### Bin Data Appropriately
+counts by site > month (losing daily or weekly variation or variation due to species)
+```{r binning and summarizing data}
+######### make table of trap nights by deployment_name ###########
+
+# trap night is defined as every night a camera is active, so this isn't really trap nights, its "this camera was triggered nights"
+# will need to do real trap nights later with all of the deployment data
+
+trigger_nights_site <-  mammals_clean%>% 
+  group_by(sitename) %>% 
+  summarize(trigger_nights = n_distinct(sitename, date)) # how many unique dates at each site
+
+# actual trap nights are more complicated because we had some down days between deployed date and retrieval date
+# step 1 sort by deployment
+trapnights_deployment <- mammals_clean %>% 
+  group_by(sitename, deployment_id) %>% 
+  summarize(start = min(date),
+            end = max(date),
+            trapnights_w_photos = n_distinct(date),
+            trapnights = difftime(max(date), min(date), units = "days")
+            )
+
+# then sum all deployment dates
+trapnights_site <- trapnights_deployment %>% 
+  group_by(sitename) %>% 
+  summarise(trapnights = sum(trapnights))
+
+# also interested in trapnights per month for each site
+trapnights_month <- mammals_clean %>% 
+  group_by(sitename, month) %>% 
+  summarize(start = min(date),
+            end = max(date),
+            trapnights_w_photos = n_distinct(date),
+            trapnights = difftime(max(date), min(date), units = "days")
+            )
+
+######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
+
+activity_site_month <- left_join(mammals_clean, trapnights_month, by = join_by(sitename, month)) %>% # first append monthly trapnights to full dataset
+  group_by(sitename, month, trapnights, burst_settings, utm_x, utm_y) %>% 
+  summarize(total_captures = n(), # count number of rows (observations) in each category
+            ) %>% # had a hard time with the other columns so I'm tossing them out into a mutate:
+  mutate(adjusted_captures = total_captures/burst_settings) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10))
+  mutate(captures_by_trapnight = adjusted_captures/as.numeric(trapnights)) %>% 
+  # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
+  mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
+                                      utm_y > -120.452725 ~ "below",
+                                      utm_y < -120.506037 ~ "north of Jalama")) # lon of north jalama cam
+  
+  
+########################################################################################
+```
+
+### Visualize Data - Violin Plot
+```{r plot diffs above and below PC}
+
+pc_violin <- ggplot(activity_site_month, aes(x = point_conception, y = adjusted_captures)) +
+  geom_violin()
+
+pc_boxplot <- ggplot(activity_site_month, aes(x = point_conception, y = adjusted_captures)) +
+  geom_boxplot()
+
+```
+### Run a T-Test
+```{r point conception t test}
+
+activity_site_month_ttest <- activity_site_month %>% 
+  filter(!point_conception == "north of Jalama")
+
+t.test(adjusted_captures ~ point_conception, data = activity_site_month_ttest)
+
+```
+
+
+
+
+
+
+
+
+

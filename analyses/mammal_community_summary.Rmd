@@ -8,6 +8,7 @@ date: "2024-07-22"
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lubridate)
+library(hms)
 library(janitor)
 library(vegan)
 library(here)
@@ -18,7 +19,590 @@ library(Polychrome) #package to make palettes witha shit ton of distinct colors
 # Catch All Markdown for Mammal Community and Activity Summary Figures and Stats
 
 ## Pull and Clean Data
-```{r}
+```{r data import and cleaning}
 
+# let's see what kind of mess we're working with
+mammals_unclean <- read_csv(here("data/WI_data_22jul2024/image_classifications_edited_23jul24.csv")) # had to manually paste in some NVS photos with the correct date 23 jul 2024
+
+#unique(mammals_unclean$behavior)
+
+mammals <- mammals_unclean %>%
+  filter(class == "Mammalia") %>% 
+  filter(!identified_by == "Computer vision") %>%  # removes about 11k rows, some of them from hollister anyway
+  
+  # ugh annoying unclean inconsistent capitals
+  mutate(filename = tolower(filename)) %>% 
+  
+  # ugh ugh the filenames where i forgot to put a "_"
+  mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "boatcam17apr22", "boat_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "pb28apr22 ", "pb_28apr22 ")) %>% 
+  mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "nvs28apr22 ", "nvs_28apr22 ")) %>% 
+  
+    # also inconsistent sitenames:
+  mutate(sitename = case_when(deployment_id == "Boneyard 09/07/2022" ~ "Boneyard Cam",
+                              deployment_id == "Old Fencepost Cam April 2022" ~ "Old Fencepost Cam",
+                              deployment_id == "Percos Post March 2022" ~ "Percos Post Cam",
+                              deployment_id == "seawall cam" ~ "Seawall Cam",
+                              deployment_id == "Boathouse May - July 2022" ~ "Boathouse Cam",
+                              .default = as.character(deployment_id))) %>% 
+  
+  mutate(deployment_id = paste0(str_extract(filename, "[^_]*_[^_]*"))) %>%  # return only the first 2 substrings (e.g. cam name and dmy) of the filenames - this is very sloppy and I hate it but oh well
+  
+  #English translation:
+    # [^_]* = as many non-underscore characters as possible
+    # _ = an underscore
+    # [^_]* = as many non-underscore characters as possible
+    # [...] is a character class. [abc] means "a or b or c", and [^abc] means anything but a or b or c.
+  
+  # editing the csv messed up the dates which were so nice before
+  #mutate(timestamp = as.POSIXct(timestamp, tz=Sys.timezone()))# %>% # THIS IS SUPER INCONSISTENT, SOMETIMES THE DATA IMPORTS WITH NORMAL DATES, SOMETIMES NOT
+  
+  ## main thing to do is clean up the behavior column which is a mess. Specifically need to separate all of the "holding" etc behaviors from the item
+  mutate(behavior = tolower(behavior)) %>% 
+  mutate(behavior_clean = str_replace(behavior, "carrying", "carrying;")) %>% 
+  mutate(behavior_clean = str_replace(behavior_clean, "holding food", "holding;")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "holding ", "holding;")) %>% 
+  mutate(behavior_clean = str_replace(behavior_clean, "eating ", "eating;")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "foraging", "foragin")) %>% # i think this is the only way to do this given the nature of this typo
+  mutate(behavior_clean = str_replace(behavior_clean, "foragin", "nose to ground")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "flighting", "fighting")) %>%
+  mutate(behavior_clean = str_remove(behavior_clean, "\\[")) %>%
+  mutate(behavior_clean = str_remove(behavior_clean, "\\]")) %>%
+# there are many more behaviors to clean but for now, moving on to cleaning identifications because we are likely not going to focus on behavior
+
+
+  separate(behavior, c("behavior_clean", "prey_or_item"), sep = ";", remove = FALSE) %>% 
+  separate(behavior, c("behavior1", "behavior2"), sep = ",", remove = TRUE) %>%  # separates out behaviors if there are multiple
+  
+  uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
+          # we are basically multipling the number captures of animals by the number of animals in the capture - this is fine...
+          
+          .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
+          ) #%>% 
+
+## graveyard for now:
+ 
+# going to make some assumptions about IDs here:
+  mutate(ID = case_when(common_name == "canis species" ~ "coyote",
+                        common_name == "canine family" ~ "coyote",
+                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "odocoileus species" ~ "Mule Deer",
+                        common_name == "elk" ~ "mule deer", # def not an elk
+                        common_name == "even-toed ungulate" ~ "mule deer",
+                        common_name == "pronghorn" ~ "mule deer", 
+                        common_name == "vulpes species" ~ "grey gox",
+                        common_name == "lepus species" ~ "brush rabbit", 
+                        common_name == "domestic cat" ~ "Bobcat", # double checked, def a bobcat
+                        common_name == "Domestic Pig" ~ "Feral Hog", 
+                        common_name == "Wild Boar" ~ "Feral Hog",
+                        common_name == "Sus Species" ~ "Feral Hog",
+                        common_name == "Neotoma Species" ~ "Rat",
+                        common_name == "Martes Species" ~ "Weasel",
+                        common_name == "Ursus Species" ~ "American Black Bear",
+                        common_name == "Nutria" ~ "Rat", # for now, until we determine if that thing is actually a nutria!
+                        common_name == "Western Gray Squirrel" ~ "California Ground Squirrel",
+                        common_name == "Brown Rat" ~ "Rat",
+                        common_name == "Kit Fox" ~ "Coyote", # def not a kit fox 
+                        common_name == "White-tailed Deer" ~ "Mule Deer",
+                        common_name == "Domestic Cattle" & deployment_id == "Jalama 2" ~ "Feral Hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
+                        common_name == "White-tailed Jackrabbit" ~ "Coyote",
+                        common_name == "Black-tailed Jackrabbit" ~ "Coyote", # checked and all jackrabbit IDs are coyotes
+                        .default = as.character(common_name)
+                        )
+         ) %>% 
+# need to remove sheep, mouflon?? and other weird IDs
+  filter(ID != "Mouflon", 
+         ID != "Domestic Sheep",
+         ID != "Equus Species",
+         ID != "Domestic Dog",
+         ID != "Domestic Horse") 
+
+
+
+```
+
+## Fix Messed Up Dates in Dataset
+```{r fixing dates}
+
+# we will first pull out just the incorrect dates, which are luckily all before 2020
+fix_dates <- mammals %>% 
+    ## make the dates nice
+  mutate(year = year(timestamp)) %>% 
+  filter(year<2021)
+
+# now we need to figure out what the corrections are, and for that we will need this dataset: https://docs.google.com/spreadsheets/d/1-gLml8H2stC2Va9H42tWLylx-5f1r8m4BDMKnsBUHl8/edit?usp=sharing (downloaded csv of one tab)
+timestamp_corrections1 <- read_csv(here("data/incorrect_timestamps.csv")) 
+
+timestamp_corrections <- timestamp_corrections1 %>% 
+  rename(deployment_id = filename) %>% 
+  mutate(real_start = as.POSIXct(real_start, tz=Sys.timezone())) %>% 
+  mutate(recorded_start = as.POSIXct(recorded_start, tz=Sys.timezone())) %>% 
+  mutate(real_end = as.POSIXct(real_end, tz=Sys.timezone())) %>% 
+  mutate(recorded_end = as.POSIXct(recorded_end, tz=Sys.timezone())) %>% 
+  #mutate(real_start = as.Date(real_start, format = "%m/%d/%y"))
+  
+  mutate(correction = difftime(real_start, recorded_start, units = "mins")) %>%  #gives us the # minutes to add to the recorded time to correct the timestamp
+  select(deployment_id, correction)
+
+#test_correct <- timestamp_corrections %>% 
+#  mutate(calculated_end = recorded_end + correction) # it works!!
+
+# now we can apply to the timestamp on each incorrect date, I hope!
+
+## by matching on deployment ID
+fixed_dates <- left_join(fix_dates, timestamp_corrections, by = join_by(deployment_id)) %>%  # pop the correction time in to the deployments it applies to
+  # overwrite timestamp column with correct date
+  mutate(timestamp = timestamp + correction) %>% 
+  select(!c(correction, year)) # take these bad bois out
+  
+
+# join the two datasets back together!
+mammals_correctdates <- mammals %>% 
+  filter(year(timestamp)>2021) # need to remove the bad dates from the original dataset
+
+## and do some downstream cleaning like removing useless columns
+mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>% 
+  select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects, behavior1, behavior2, prey_or_item) %>% 
+  mutate(day = day(timestamp)) %>% 
+  mutate(month = month(timestamp)) %>% 
+  mutate(year = year(timestamp)) %>% 
+  separate(timestamp, c("date", "time"), sep = " ") %>% 
+  mutate(common_name = tolower(common_name))
+
+```
+
+## We should add in some metadata for sorting and analysis purposes
+
+```{r add in metadata}
+
+metadata <- read_csv(here("data/site_metadata.csv")) %>% 
+  clean_names() %>% 
+  filter(!str_detect(camera_id, "2")) %>%  # removing second cameras from the metadata (these were placed when the originals were stolen, but in the same place)
+  select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
+  rename(sitename = station)
+
+mammals_clean <- left_join(mammals_fixed_dates, metadata, by = join_by(sitename)) %>% 
+  filter(!is.na(property)) # right now (23 jul) this filters out HROA data because there's not metadata for those cams
+
+```
+
+
+## Ok! Now we can visualize and play with the nice clean data (I hope)
+
+```{r some visualizations}
+
+########################################################################################
+
+######### make table of total images by deployment_name ###########
+count_site <- mammals_clean %>%
+  count(sitename) %>% 
+  rename(n_images_total = n) # rename n to be more informative
+
+
+########################################################################################
+
+######### make table of animal activity ( = incidences) by species summed across all deployment_ids ###########
+count_species <- mammals_clean %>%
+  count(common_name) %>%  # makes a summary table of # images per species per deployment_id
+  rename(n_images = n) # rename n to be more informative
+
+
+########################################################################################
+
+######### make table of animal activity ( = incidences) by species and deployment_ids ###########
+count_species_site <- mammals_clean %>%
+  count(sitename, common_name) %>%  # makes a summary table of # images per species per deployment_id
+  rename(n_images = n) # rename n to be more informative
+
+
+########################################################################################
+
+######### make table of TOTAL wild animal activity ( = incidences that weren't empty, people, or domestic animals) summed across deployment_ids ###########
+#count_activity <- mammals_clean %>%
+#  filter(species != "empty") %>% 
+#  filter(species != "person")%>% 
+#  filter(species != "human")%>% 
+#  filter(species != "dog")%>% 
+#  filter(species != "domestic dog")%>% 
+#  filter(species != "equestrian") %>% 
+#  count(deployment_name) %>%  # makes a summary table of # images per species per deployment_id
+#  rename(n_animal_imgs = n) # rename n to be more informative
+
+
+########################################################################################
+
+######### make table of total human activity ( = incidences that weren't empty, people, or domestic animals) summed across deployment_ids ###########
+#human_activity <- mammals_clean %>%
+#  filter(species == "person"|species == "human"|species == "dog"|species == "domestic dog"|species == "equestrian") %>% 
+#  count(deployment_name) %>%  # makes a summary table of # images of humans per deployment_id
+#  rename(n_human_imgs = n) # rename n to be more informative
+
+########################################################################################
+
+######### make table number of wildlife species at each site ###########
+num_species_site <- mammals_clean %>%
+  filter(common_name != "human")%>% 
+  filter(common_name != "dog")%>% 
+  filter(common_name != "domestic dog")%>% 
+  filter(common_name != "cow") %>%  
+  group_by(sitename) %>%  # makes a summary table of # species per deployment_id
+  summarize(num_species = n_distinct(sitename, common_name)) # how many unique species at each site
+  
+########################################################################################
+
+
+######### make table one big summary table by site ###########
+
+#camera_activity_summary <- full_join(count_site, count_activity,  by = join_by(deployment_name)) %>% 
+#  full_join(human_activity, by = join_by(deployment_name)) %>%
+#  full_join(num_species_site, by = join_by(deployment_name)) %>% 
+#  mutate(percent_animals = (n_animal_imgs/n_images_total)*100) %>% 
+#  mutate(deployment_name = fct_relevel(deployment_name, c("Gato", "Kayak (St. Augustine West)", "Llegua" , "Auggie's", "Rennie's", "Bulito", "Panochas", "Little Drake's", "Sacate", "Alegria", "Caliente"))) %>%  # relevel sites so they're in a N > S order
+#  arrange(deployment_name)
+
+#kable(camera_activity_summary
+#      ,col.names = c("Camera Location (N to S)", "Total Images Taken" , "Number of Animal Sightings", "Number of Human Sightings", "Number of Unique Species", "Percent of Images Containing Animals")
+#      )
+
+```
+
+```{r visualizations of data over time, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Temporal visualizations are more tricky because some of the cameras have date errors
+### for now we will just filter incorrect dates out
+
+######### make table of trap nights by deployment_name ###########
+
+# trap night is defined as every night a camera is active, so this isn't really trap nights, its "this camera was triggered nights"
+
+trigger_nights_site <-  mammals_clean%>% 
+  group_by(sitename) %>% 
+  summarize(trigger_nights = n_distinct(sitename, date)) # how many unique dates at each site
+
+# actual trap nights are more complicated because we had some down days between deployed date and retrieval date
+# step 1 sort by deployment
+trapnights_deployment <- mammals_clean %>% 
+  group_by(sitename, deployment_id) %>% 
+  summarize(start = min(date),
+            end = max(date),
+            trapnights_w_photos = n_distinct(date),
+            trapnights = difftime(max(date), min(date), units = "days")
+            )
+
+# then sum all deployment dates
+trapnights_site <- trapnights_deployment %>% 
+  group_by(sitename) %>% 
+  summarise(trapnights = sum(trapnights))
+
+# also interested in trapnights per month for each site
+trapnights_month <- mammals_clean %>% 
+  group_by(sitename, month) %>% 
+  summarize(start = min(date),
+            end = max(date),
+            trapnights_w_photos = n_distinct(date),
+            trapnights = difftime(max(date), min(date), units = "days")
+            )
+  
+#view(trapnights_month)
+########################################################################################
+
+
+######### make table of species by month ###########
+species_month <- mammals_clean %>%
+  count(month, year, common_name) %>%  # makes a summary table of # images per species per month
+# includes count of empties
+  rename(n_imgs = n) # rename n to be more informative
+
+########################################################################################
+
+######### make table of unadjusted image count by site by date ###########
+count_site_date <- mammals_clean %>%
+  count(sitename, month)  # makes a summary table of # animal sightings per species per deployment_id per month
+  
+########################################################################################
+
+
+######### make table of total images summed across all deployment_ids by date ###########
+count_month <- mammals_clean %>%
+  count(month) # makes a summary table of # animal-seconds per month
+########################################################################################
+
+
+######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by date and site and species ###########
+activity_site_month_sp <- left_join(mammals_clean, trapnights_month, by = join_by(sitename, month)) %>% # first append monthly trapnights to full dataset
+  group_by(sitename, month, common_name, trapnights, burst_settings) %>% 
+  summarize(total_captures = sum(number_of_objects), # sums number of objects so adjusts by number of animals in image
+            adjusted_captures = ((sum(number_of_objects))/(burst_settings)) # adjusts # of captures by the number of images taken in a burst (8 or 10)
+            ) %>% # had a hard time with the final column so I'm tossing it out into a mutate:
+  mutate(captures_by_trapnight = adjusted_captures/as.numeric(trapnights)) %>% 
+  unite("sitemonth_id", sitename, month, sep = "_", remove = FALSE)
+  
+  
+  
+########################################################################################
+
+```
+
+## vegan analysis with site metadata from: https://docs.google.com/spreadsheets/d/1F1pI3ORnCh-Zq6jd1Y11ThUozsBy3iryT9zxW7QCeVY/edit?usp=sharing
+```{r reshape data for vegan}
+#######################################
+# get in shape for vegan (wide)      #
+#######################################
+
+# using count_species_site and adjusting using burst_settings from metadata
+# need to get clean dataset into sitemonth as rownames and column headers as species with counts in cells
+
+count_matrix <- count_species_site %>% 
+  left_join(., metadata, by = join_by(sitename)) %>% 
+  select(sitename, common_name, n_images, burst_settings) %>% 
+  
+  pivot_wider(names_from = common_name, # makes 'common_name' col into col headers
+              values_from = n_images, # and pulls counts from n col
+              values_fill = 0) %>%  # fills in zeros to the matrix
+  column_to_rownames("sitename")  #this is important for separating site names from count data (for matrix reasons)
+
+
+#########################################################################################
+# make new metadata set so that binning by month and averaging by site is possible      #
+#########################################################################################
+
+
+```
+
+# Now we are ready to use vegan to calculate a bunch of community ecology metrics - the below taken from An Bui's vegan workshop.
+
+## How speciose are my communities?
+```{r richness}
+# we can use vegan to count species per site using specnumber() but we need to change the format to wide first
+
+sp.count <- specnumber(count_matrix)
+
+# can't do much else until we have site data, which we might not ever have
+```
+
+
+### How diverse are my communities?
+```{r diversity}
+
+# vegan::diversity() will calculate shannon (default), simpson, and fisher indices
+shannondiv <- diversity(count_matrix)
+# again creates named vector 
+
+```
+
+```{r shannon-diversity-plot}
+shandiv_df <- shannondiv %>% 
+  # convert named vector to dataframe
+  enframe() %>% 
+  rename(sitename = name) %>% 
+  
+# join with metadata: this joins shandiv_df to site_type matching shandiv_df$name to site_type$site
+  full_join(., metadata, by = join_by(sitename)) %>% 
+  # then calculate mean diversity for each site
+  group_by(sitename) %>% 
+  summarize(mean = mean(value))
+
+shandiv_df$site <- factor(shandiv_df$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+
+shandiv_plot <- ggplot(shandiv_df, 
+                       aes(x= site, y = value)) +
+                       #aes(x = landtype, y = mean, fill = landtype)) +
+  geom_col()+
+  theme_classic()+  
+  ylab("Shannon Diversity Index")+
+  xlab("Sites North to South")+
+  theme(axis.text.x = element_blank(),
+    #axis.text.x = element_text(),
+        axis.text.y = element_text(size = 30),
+        axis.title.y = element_text(size = 30),
+        axis.title.x = element_text(size = 30))
+shandiv_plot
+```
+
+### relatinoship between shandiv and human activity
+
+```{r humans and shannon}
+source("DataWrangling/human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
+
+humancount_spring <- hooman_count %>% 
+  filter(date == "10may22" | date == "14may22" | date == "17apr22" | date == "28apr22" | date == "5apr22") %>% 
+  # we only wnt human counts that match the current timeline we're working with, may and april
+  mutate(site = case_when(
+    site == "perb" ~ "pb",
+    site == "gc" ~ "gov",
+    site == "gc2" ~ "gov",
+    TRUE ~ site
+  )) %>% 
+  filter(!is.na(site)) %>% 
+  group_by(site) %>% 
+  summarise(human = sum(n)) 
+
+humans_shannondiv <- full_join(shandiv_df, humancount_spring, all = TRUE) %>% 
+  replace_na(list(human = 0)) %>% 
+  #pivot_longer(cols = n:human, names_to = "human_or_animal", values_to = "count")%>%  # pivot for ggplot (im crying)
+  drop_na()
+
+# plotting scatter to see if there's a relationship
+
+scatter <- ggplot(humans_shannondiv, aes(human, value))+
+  geom_point()
+
+```
+
+
+### How different are my communities in species composition?
+
+Ordination: each species is an axis along which your sites fall. Ordination compresses all these axes into 2
+There are many different ways to do this math (most of which require multiple samples per habitat type and we only have one sample per site)
+
+#### perMANOVA
+Permutational analysis of variance: are the centroids of my communities different?
+```{r bird-permanova}
+# vegan::adonis() takes the same input format as stats::aov() = response ~ IV, data = group_df
+mammal_perm <- adonis(count_matrix ~ sitename, data = env)
+mammal_perm
+```
+
+#### PCA
+
+There are as many PCs as there are columns in your matrix, but you can plot as many as you want... best to see what you can do with 2 or maybe 3 for best visualization
+
+```{r PCA}
+# Principal components analysis = a rotation of axes
+# redundancy analysis (rda) is an unconstrained ordination - the variation based ONLY on species data
+# a constrained ordination would ask how env variables shape community composition
+mammalPCA <- rda(count_matrix) #no env variables in here
+mammalPCA
+# pay attention to the inertia term in output - inertia is all the variation in community composition that exists in your dataset
+
+summary(mammalPCA)
+# this gives a big output of where species fall in the ordination (species scores and site scores) as well as importance of components - again components are made up just of spp abundances
+
+pca_biplot <- biplot(mammalPCA)
+# this plot is not necessarily that informative
+# str(pcabiplot) : you have coordinates for points and for ends of arrows
+
+# can extract informative info from the biplot
+PCAscores <- as.data.frame(pca_biplot$site) #%>% # it's called site, not sitename
+  bind_cols(site_type, .)
+
+PCAvect <- as.data.frame(pca_biplot$species) # called species, not common_name
+
+
+PCA_plot <- ggplot(PCAscores) +
+  geom_point(aes(x = PC1, y = PC2, 
+                 #color = landtype
+                 )) +
+  geom_segment(data = PCAvect, aes(x = 0, y = 0, xend = PC1, yend = PC2), #make segements coming out from origin
+               arrow = arrow(length = unit(0.2, "cm"))) + #arrow length indicates contribution to component
+              # sharp angle between arrows indicates correlation between species; 90 deg -> independence
+  geom_text(data = PCAvect, aes(x = PC1, y = PC2, label = rownames(PCAvect)))
+
+PCA_plot #expects linear response of species abundance to env variables - not always a valid assumption
+```
+#### NMDS
+
+Non-metric Multidimensional Scaling
+
+Good for nonlinear responses (eg a unimodal response)
+How might communities separate according to their dissimilarity to each other?
+NMDS is again collapsing variation into two axes but slightly differently than PCA
+
+Construct dissimilarity matrix (species ~ site -> site ~ site); then use the dissimilarity as input to ordination space
+
+default dissimilarity measure is bray-curtis distance - use the one that makes most sense for your data
+
+```{r mammalNMDS}
+#
+bird_NMDS <- metaMDS(birds)
+
+bird_NMDS
+
+nmdsplot <- plot(bird_NMDS) #circles are sites (communities/rows), crosses are species
+  #NMDS is a mapping not a rotation - axes don't matter wrt variation, etc - it's just a framework
+  #for describing dissimilarity between communities
+
+stressplot(bird_NMDS)
+#stress = how far the community moves from its original state in dissimilarity
+#this output is not ideal - too much stress
+
+```
+
+```{r NMDS-plot}
+# exracting outputs
+nmds_df <- as_tibble(bird_NMDS$points) %>% 
+  # bind with metadata to plot
+  bind_cols(site_type, .)
+
+nmds_plot <- ggplot(nmds_df, aes(x = MDS1, y = MDS2, color = landtype, shape = landtype)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse()
+nmds_plot
+#all 3 habitats have different habitat structures but lots of overlap...
+```
+
+?betadisper should always be used to check assumptions of nmds (?)
+
+##### Things to consider about stress
+
+```{r subsampled-NMDS}
+sub <- birds[sample(nrow(birds), 20), ]
+subNMDS <- metaMDS(sub)
+stressplot(subNMDS) #this subsample brings the stress level down to something that would be acceptable for this ordination
+```
+
+### How is community structure related to specific environmental variables?
+
+```{r bird-CCA}
+# Canonical correspondence analysis
+# only shows variation in communities based on environmental variables
+# like a hypothesis test for what you think is most likely to contribute to variation - don't just throw all the variables in
+# good place to try several models and do model selection?
+birdCCA <- cca(birds ~ canopy_height + stems_ha + big_stem_bas, data = env)
+birdCCA
+
+#again, measure of inertia (amt of variation in community composition)
+#compare constrained and unconstrained inertia
+
+```
+
+```{r bird-CCA-plot}
+ccaplot <- plot(birdCCA)
+#this plot reads similar to PCA - x, y axes are the two components that describe most variation and arrows describe how communities might separate along env variables
+
+# scaling factor is taken from structure of plot str(ccaplot) $biplot
+ccavectors <- as.data.frame(ccaplot$biplot * 7.69) #scaling factor will change based on the size of your R window / plot output
+
+#coordinates from sites and species from biplot output
+site_data <- as.data.frame(ccaplot$sites) %>% 
+  bind_cols(site_type, .)
+
+species_data <- as.data.frame(ccaplot$species)
+
+cca_plot <- ggplot(site_data) +
+  geom_point(aes(x = CCA1, y = CCA2, color = landtype), shape = 19) +
+  geom_segment(data = ccavectors, aes(x = 0, y = 0, xend = CCA1, yend = CCA2), arrow = arrow(length = unit(0.2, "cm"))) +
+ # scale_x_continuous(limits = c(-10, 16)) + #these cut off part of the plot - comment them out to fix error
+ # scale_y_continuous(limits = c(-3, 12)) +
+  geom_point(data = species_data, aes(x = CCA1, y = CCA2), shape = 17, size = 2, color = "blue") +
+  geom_text(data = ccavectors, aes(x = CCA1, y = CCA2, label = rownames(ccavectors)))
+cca_plot
+
+#length of arrows indicates relative importance to the ordination - here stem basal area is more important than canopy height or stems per hectare
+#direction of the arrows indicates correlation between variables
+#location of sites/species related to arrows is more important now: more stems/ha in dry sites, taller canopies in riparian sites
+```
+
+```{r graveyard}
+# for my edification, I want to know how many trap days per camera (below is months bc im messing around)
+
+
+
+humans <- read_csv(here("data/human_activity.csv")) %>% 
+  mutate(site = case_when(site == "cove" ~ "Cove",
+                          .default = as.character(site))) # I'm sure there are more errors
 ```
 

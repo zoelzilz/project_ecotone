@@ -1,0 +1,57 @@
+Station,camera_ID,utm_y,utm_x,Setup_date,Retrieval_date,Problem1_from,Problem1_to,Problem2_from,Problem2_to,Problem3_from,Problem3_to,cam_brand,property,habitat adjacent,habitat secondary,IZ type,cam_change_description,burst_settings
+Jalama Cam,Jalama Cam,-120.500367,34.50692,,,,,,,,,Reconyx,JBCP,game trail,canyonita,beach,,10
+Jalama 2 Cam,Jalama Two Cam,-120.499625,34.505078,,,,,,,,,Reconyx,JBCP,game trail,bluff,beach,,10
+Cojalama Cam,Cojalama Cam,-120.4991,34.503762,,,,,,,,,Reconyx,JBCP,bluff,bluff,beach,,10
+Cojo Gate Cam,Cojo Gate Cam,-120.497963,34.501155,,,,,,,,,Reconyx,JBCP,game trail,canyon,beach,,10
+Cojo Canyon Cam,Cojo Canyon Cam,-120.49685,34.498108,,,,,,,,,Reconyx,JBCP,game trail,canyonita,beach,,10
+Seawall Cam,Seawall Cam,-120.479758,34.480814,,,,,,,,,Reconyx,JLDP,game trail,bluff,beach,,10
+Black Canyon Cam,black canyon camera 1,-120.475431,34.473854,,,,,,,,,Browning,JLDP,game trail,canyon,beach,,8
+Black Canyon Cam,black canyon camera 2,-120.475431,34.473854,,,,,,,,,Browning,JLDP,game trail,canyon,beach,"stolen in may, replaced and armored and moved slightly",8
+North Beach Fort Cam,fort cam,-120.474388,34.470065,,,,,,,,,Browning,JLDP,bluff,bluff,beach,,8
+North Vista Spring Cam,north vista spring,-120.473617,34.467715,,,,,,,,,Browning,JLDP,watershed,canyon,beach,,8
+North Beach Canyon Cam,north beach camera 1,-120.472345,34.460105,,,,,,,,,Browning,JLDP,game trail,canyon,beach,,8
+North Beach Canyon Cam,north beach camera 2,-120.472345,34.460105,,,,,,,,,Browning,JLDP,game trail,canyon,beach,CRC Donated camera was stolen and replaced,8
+Boneyard Cam,Boneyard Cam,-120.472563,34.456192,,,,,,,,,Browning,JLDP,game trail,bluff,beach,,8
+Cove Cam,Cove Cam,-120.4566805,34.4446375,,,,,,,,,Browning,JLDP,bluff,bluff,beach,,8
+Govies Cliff Cam,government point position 1,-120.452425,34.442691,,31-Jul-22,,,,,,,Browning,JLDP,game trail,bluff,RIZ,,8
+Govies Cliff Cam,government point position 2,-120.452425,34.442691,31-Jul-22,,,,,,,,Browning,JLDP,game trail,bluff,RIZ,flipped so it is facing ocean 31 july 22,8
+Big Cojo Cam,big cojo position 1,-120.45277,34.446176,,,,,,,,,Browning,JLDP,game trail,lowland,beach,,8
+Big Cojo Cam,big cojo position 2,-120.45277,34.446176,,,,,,,,,Browning,JLDP,game trail,lowland,beach,moved to driftwood inside creek drainage,8
+Percos Boat Cam,Percos Boat Cam,-120.445674,34.450395,,,,,,,,,Browning,JLDP,bluff,bluff,RIZ,changed cameras 13 mar 22,8
+Percos Driftwood Cam,Percos Driftwood Cam,-120.444986,34.451459,,,,,,,,,Browning,JLDP,lowland,dune,beach,moved slightly 13 mar 22,8
+Wood Canyon Cam,Wood Canyon Cam,-120.4418489,34.4520732,,,,,,,,,Browning,JLDP,game trail,dune,beach,,8
+Percos Beach Cam,percos beach position 1,-120.436957,34.451883,,20-Aug-22,,,,,,,Browning,JLDP,game trail,lowland,beach,,8
+Percos Beach Cam,percos beach position 2,-120.436957,34.451883,20-Aug-22,,,,,,,,Browning,JLDP,game trail,lowland,beach,moved 8/20/22 closer to canyon wall so less grass would trigger,8
+Percos Log Cam,percos log position 1,-120.43358,34.451435,,20-Aug-22,,,,,,,Browning,JLDP,lowland,lowland,beach,,8
+Percos Log Cam,percos log position 2,-120.43358,34.451435,20-Aug-22,,,,,,,,Browning,JLDP,lowland,lowland,beach,moved 8/20/22 to be bolted to log,8
+Percos Post Cam,percos post position 1,-120.431493,34.451174,,20-Aug-22,,,,,,,Browning,JLDP,lowland,lowland,beach,,8
+Percos Post Cam,percos post position 2,-120.431493,34.451174,20-Aug-22,,,,,,,,Browning,JLDP,lowland,lowland,beach,"moved 8/20/22 so that it is lower and bolted to post, pointing upbeach",8
+Damsite Creek Cam,Damsite Creek Cam,-120.426794,34.450398,,,,,,,,,Browning,JLDP,watershed,lowland,beach,,8
+RIZ Cam,RIZ Cam N,-120.5523943,34.5412739,,,,,,,,,Reconyx,VSFB,game trail,lowland,RIZ,,10
+RIZ Cam Backup,RIZ Cam N BACKUP,-120.5523943,34.5412739,,,,,,,,,Reconyx,VSFB,game trail,lowland,RIZ,name changed 9/7/22,10
+RIZ Cam S Canyon,RIZ Cam S,-120.549538,34.54117,7-Sep-22,,,,,,,,Reconyx,VSFB,canyon,canyon,RIZ,I ADDED NEW; riz s used to be the name for what it now riz n backup [did i move this on 9/7 or add a new],10
+Sudden Canyon Cam,Sudden Canyon Cam,-120.543687,34.540297,,,,,,,,,Browning,VSFB,canyon,canyon,RIZ,,8
+Old Fencepost Cam,Old Fencepost Cam,-120.538155,34.538088,,,,,,,,,Browning,VSFB,game trail,canyonita,RIZ,,8
+Jolluru Cam,Jolluru Cam,-120.534867,34.536237,,,,,,,,,Reconyx,VSFB,canyon,canyon,beach,,10
+Short Canyon Cam,Short Canyon Cam,-120.531503,34.534763,,,,,,,,,Reconyx,VSFB,canyon,canyon,beach,,10
+North Jalama,North Jalama,-120.506037,34.51637,,,,,,,,,Reconyx,VSFB,bluff,bluff,beach,,10
+Boathouse Cam,Boathouse Cam,-120.60872,34.5568009,,,,,,,,,Browning,VSFB,game trail,bluff,RIZ,,8
+Morida Cam,Morida Cam,-120.556447,34.543781,,,,,,,,,Reconyx,VSFB,game trail,canyonita,beach and riz,,10
+Water Canyon Cam,Water Canyon,120.5601141,34.5455563,,,,,,,,,Reconyx,VSFB,lowland,canyon,beach and riz,,10
+Not Water Canyon Cam,Not Water Canyon Cam,-120.55913,34.5447124,,,,,,,,,Reconyx,VSFB,canyon,bluff,beach and riz,,10
+Saucito,Saucito Cam,-120.56704,34.5506971,,,,,,,,,Reconyx,VSFB,canyonita,bluff,beach and riz,,10
+Ladrones Cam,ladrones camera 1,-120.57262,34.552867,,,,,,,,,Reconyx,VSFB,canyon,bluff,beach and riz,,10
+Ladrones Cam,ladrones camera 2,-120.57262,34.552867,,,,,,,,,Reconyx,VSFB,canyon,bluff,beach and riz,orignally deployed w vsfb 11 but battery issues so replaced with young lab cam and moved to other side of ladrones canyon,10
+Gato Culvert,,,,,,,,,,,,,HROA,culvert,beach,beach,,
+Kayak,,,,,,,,,,,,,HROA,canyonita,beach,beach and riz,,
+Llegua Estuary,,,,,,,,,,,,,HROA,watershed,lowland,beach,,
+Auggies,,,,,,,,,,,,,HROA,canyonita,bluff,beach,,
+Rennie's,,,,,,,,,,,,,HROA,watershed,lowland,beach,,
+Bulito South,,,,,,,,,,,,,HROA,watershed,parking lot,beach,,
+Wasp Cam,,,,,,,,,,,,,HROA,watershed,bluff,beach,,
+Panochas,,,,,,,,,,,,,HROA,watershed,lowland,beach,,
+Drake's,,,,,,,,,,,,,HROA,watershed,lowland,beach,,
+Sacate,,,,,,,,,,,,,HROA,canyonita,bluff,beach,,
+Cuarta Culvert,,,,,,,,,,,,,HROA,watershed,bluff,beach,,
+Alegria,,,,,,,,,,,,,HROA,watershed,canyon,RIZ,,
+Agua Caliente,,,,,,,,,,,,,HROA,watershed,canyon,beach,,
