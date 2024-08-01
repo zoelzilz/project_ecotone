@@ -74,6 +74,35 @@ mammals <- mammals_unclean %>%
           ) %>% 
   mutate(common_name = tolower(common_name)) %>% 
   
+  mutate(ID = case_when(common_name == "canis species" ~ "coyote",
+                        common_name == "canine family" ~ "coyote",
+                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "odocoileus species" ~ "Mule Deer",
+                        common_name == "elk" ~ "mule deer", # def not an elk
+                        common_name == "even-toed ungulate" ~ "mule deer",
+                        common_name == "pronghorn" ~ "mule deer", 
+                        common_name == "vulpes species" ~ "grey gox",
+                        common_name == "lepus species" ~ "brush rabbit", 
+                        common_name == "domestic cat" ~ "Bobcat", # double checked, def a bobcat
+                        common_name == "Domestic Pig" ~ "Feral Hog", 
+                        common_name == "Wild Boar" ~ "Feral Hog",
+                        common_name == "Sus Species" ~ "Feral Hog",
+                        common_name == "Neotoma Species" ~ "Rat",
+                        common_name == "Martes Species" ~ "Weasel",
+                        common_name == "Ursus Species" ~ "American Black Bear",
+                        common_name == "Nutria" ~ "Rat", # for now, until we determine if that thing is actually a nutria!
+                        common_name == "Western Gray Squirrel" ~ "California Ground Squirrel",
+                        common_name == "Brown Rat" ~ "Rat",
+                        common_name == "Kit Fox" ~ "Coyote", # def not a kit fox 
+                        common_name == "White-tailed Deer" ~ "Mule Deer",
+                        common_name == "Domestic Cattle" & deployment_id == "Jalama 2" ~ "Feral Hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
+                        common_name == "White-tailed Jackrabbit" ~ "Coyote",
+                        common_name == "Black-tailed Jackrabbit" ~ "Coyote", # checked and all jackrabbit IDs are coyotes
+                        .default = as.character(common_name)
+                        )
+         ) %>% 
+  
   # take out non-wildlife
   filter(common_name != "domestic cattle",
          common_name != "human",
@@ -145,17 +174,20 @@ deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_
          deployment_id = filename_prefix) %>% 
   
   # need to rename some file prefixes to match what is in mammals post-cleaning (ie adding underscores)
-  mutate(deployment_id = str_replace(deployment_id, "pp17apr22", "pp_17apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "boatcam17apr22", "boat_17apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "pb28apr22", "pb_28apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "gov17apr22", "gov_17apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "nvs28apr22", "nvs_28apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "pl17apr22", "pl_17apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "cove17apr22", "cove_17apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "bc28apr22", "bc_28apr22")) %>% 
-  mutate(deployment_id = str_replace(deployment_id, "bc17apr22", "bc_17apr22")) %>%
-  mutate(deployment_id = str_replace(deployment_id, "pd28apr22", "pd_28apr22")) %>% 
-  filter(!is.na(deployment_id)) %>% 
+    # ugh ugh the filenames where i forgot to put a "_"
+  mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "boatcam17apr22", "boat_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "pb28apr22", "pb_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "nvs28apr22", "nvs_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "pl17apr22", "pl_17apr22")) %>%  
+  mutate(filename = str_replace(filename, "cove17apr22", "cove_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "bc17apr22", "bc_17apr22")) %>%
+  mutate(filename = str_replace(filename, "bc28apr22", "bc_28apr22")) %>%
+  mutate(filename = str_replace(filename, "pd28apr22", "pd_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "gov_12nov22", "big_12nov22")) %>%
+  mutate(filename = str_replace(filename, "gov_17sep", "big_17sep")) %>%
+  #filter(!is.na(deployment_id)) %>% 
   
   # need to fix days active column:
   mutate(day_end = mdy_hm(day_end)) %>% 
@@ -260,12 +292,17 @@ trigger_nights_site <-  mammals_clean%>%
 ######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
 
 activity_site_month <- mammals_clean %>% 
-  #left_join(mammals_clean, trapnights_month, by = join_by(sitename, month)) %>% # first append monthly trapnights to full dataset ## no longer have to do this since it's in its own col
-  group_by(sitename, month, days_active, burst_settings, utm_x, utm_y, dist_jalama) %>% 
-  summarize(total_captures = n(), # count number of rows (observations) in each category
-            ) %>% # had a hard time with the other columns so I'm tossing them out into a mutate:
-  mutate(adjusted_captures = total_captures/burst_settings) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10))
-  mutate(captures_by_trapnight = adjusted_captures/as.numeric(days_active)) %>% 
+  group_by(sitename,days_active_calcd, burst_settings, utm_x, utm_y, dist_jalama, month, days_per_month) %>% 
+  summarize(total_captures = n() # count number of rows (observations) in each category
+            
+            ) %>% 
+  # need to summarize again to sum dates per month accurately
+  group_by(sitename, burst_settings, utm_x, utm_y, dist_jalama, month) %>%
+  summarize(monthly_days = sum(days_per_month),
+            monthly_captures = sum(total_captures)) %>% 
+  # had a hard time with the other columns so I'm tossing them out into a mutate:
+  mutate(adjusted_captures = monthly_captures/burst_settings) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10))
+  mutate(captures_by_trapnight = adjusted_captures/as.numeric(monthly_days)) %>% 
   # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
   mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
                                       utm_y > -120.452725 ~ "below",
@@ -275,7 +312,37 @@ activity_site_month <- mammals_clean %>%
 ########################################################################################
 ```
 
-### Visualize Data - Violin Plot
+### Visualize Data ~ Month and Site
+```{r plots of mean activity by month}
+
+# by month, sites averaged
+month_violin <- ggplot(activity_site_month, aes(x = as.factor(month), y = adjusted_captures)) +
+  geom_violin()
+
+# by month, adjusted by trapnights
+month_adj_box <- ggplot(activity_site_month, aes(x = as.factor(month), y = captures_by_trapnight))+
+  geom_boxplot()
+
+month_adj_violin <- ggplot(activity_site_month, aes(x = as.factor(month), y = captures_by_trapnight)) +
+  geom_violin()
+
+# based on this, looks like the peak in the summer is largely a function of trapping effort (aka disappears when we adjust by # trapnights)
+
+activity_site_month$sitename <- factor(activity_site_month$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ S Canyon Cam", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
+
+# by site, months averaged
+site_scatter <- ggplot(activity_site_month, aes(x = sitename, y = adjusted_captures)) +
+  geom_point(aes(color = month))
+
+site_bar <- ggplot(activity_site_month, aes(x = sitename, y = captures_by_trapnight)) +
+  geom_bar(aes(fill = month), stat = "identity")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+
+```
+
+
+
+### Visualize Data ~ Point Conception
 ```{r plot diffs above and below PC}
 
 pc_violin <- ggplot(activity_site_month, aes(x = point_conception, y = adjusted_captures)) +

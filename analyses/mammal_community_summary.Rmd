@@ -5,47 +5,72 @@ date: "2024-07-22"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+# setting all chunks not to display anything but output so i can easily knit and send to hillary
+
 library(tidyverse)
 library(lubridate)
 library(hms)
 library(janitor)
+library(kableExtra)
+library(webshot2)
 library(vegan)
 library(here)
 library(RColorBrewer)
 library(Polychrome) #package to make palettes witha shit ton of distinct colors
+
+
 ```
 
 # Catch All Markdown for Mammal Community and Activity Summary Figures and Stats
 
 ## Pull and Clean Data
 ```{r data import and cleaning}
+#### data versioning log ###
+# 23 jul 2024: had to manually paste in some NVS photos with the correct date 
+# 31 jul using what's hopefully final version, there will be new date issues I think
+
 
 # let's see what kind of mess we're working with
-mammals_unclean <- read_csv(here("data/WI_data_22jul2024/image_classifications_edited_23jul24.csv")) # had to manually paste in some NVS photos with the correct date 23 jul 2024
+mammals_unclean <- read_csv(here("data/WI_data_31jul2024/image_classifications_31jul2024.csv")) 
+
 
 #unique(mammals_unclean$behavior)
 
 mammals <- mammals_unclean %>%
   filter(class == "Mammalia") %>% 
-  filter(!identified_by == "Computer vision") %>%  # removes about 11k rows, some of them from hollister anyway
+  filter(!identified_by == "Computer vision") %>%  # removes about half the rows, hipefully from HROA
   
   # ugh annoying unclean inconsistent capitals
   mutate(filename = tolower(filename)) %>% 
+  mutate(common_name = tolower(common_name)) %>% 
   
   # ugh ugh the filenames where i forgot to put a "_"
   mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
   mutate(filename = str_replace(filename, "boatcam17apr22", "boat_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "pb28apr22 ", "pb_28apr22 ")) %>% 
+  mutate(filename = str_replace(filename, "pb28apr22", "pb_28apr22")) %>% 
   mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "nvs28apr22 ", "nvs_28apr22 ")) %>% 
-  
+  mutate(filename = str_replace(filename, "nvs28apr22", "nvs_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "pl17apr22", "pl_17apr22")) %>%  
+  mutate(filename = str_replace(filename, "cove17apr22", "cove_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "bc17apr22", "bc_17apr22")) %>%
+  mutate(filename = str_replace(filename, "bc28apr22", "bc_28apr22")) %>%
+  mutate(filename = str_replace(filename, "pd28apr22", "pd_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "gov_12nov22", "big_12nov22")) %>%
+  mutate(filename = str_replace(filename, "gov_17sep", "big_17sep")) %>%
+
     # also inconsistent sitenames:
   mutate(sitename = case_when(deployment_id == "Boneyard 09/07/2022" ~ "Boneyard Cam",
                               deployment_id == "Old Fencepost Cam April 2022" ~ "Old Fencepost Cam",
                               deployment_id == "Percos Post March 2022" ~ "Percos Post Cam",
                               deployment_id == "seawall cam" ~ "Seawall Cam",
                               deployment_id == "Boathouse May - July 2022" ~ "Boathouse Cam",
+                              deployment_id == "Saucito" ~ "Saucito Cam",
                               .default = as.character(deployment_id))) %>% 
   
   mutate(deployment_id = paste0(str_extract(filename, "[^_]*_[^_]*"))) %>%  # return only the first 2 substrings (e.g. cam name and dmy) of the filenames - this is very sloppy and I hate it but oh well
@@ -80,47 +105,61 @@ mammals <- mammals_unclean %>%
           # we are basically multipling the number captures of animals by the number of animals in the capture - this is fine...
           
           .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
-          ) #%>% 
-
-## graveyard for now:
+          ) %>% 
  
 # going to make some assumptions about IDs here:
-  mutate(ID = case_when(common_name == "canis species" ~ "coyote",
+  mutate(common_name = case_when(common_name == "canis species" ~ "coyote",
                         common_name == "canine family" ~ "coyote",
                         common_name == "cervus species" ~ "mule deer",
-                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "cervidae family" ~ "mule deer",
+                        common_name == "cetartiodactyla order" ~ "mule deer",
                         common_name == "odocoileus species" ~ "Mule Deer",
                         common_name == "elk" ~ "mule deer", # def not an elk
                         common_name == "even-toed ungulate" ~ "mule deer",
                         common_name == "pronghorn" ~ "mule deer", 
                         common_name == "vulpes species" ~ "grey gox",
                         common_name == "lepus species" ~ "brush rabbit", 
-                        common_name == "domestic cat" ~ "Bobcat", # double checked, def a bobcat
-                        common_name == "Domestic Pig" ~ "Feral Hog", 
-                        common_name == "Wild Boar" ~ "Feral Hog",
-                        common_name == "Sus Species" ~ "Feral Hog",
-                        common_name == "Neotoma Species" ~ "Rat",
-                        common_name == "Martes Species" ~ "Weasel",
-                        common_name == "Ursus Species" ~ "American Black Bear",
-                        common_name == "Nutria" ~ "Rat", # for now, until we determine if that thing is actually a nutria!
-                        common_name == "Western Gray Squirrel" ~ "California Ground Squirrel",
-                        common_name == "Brown Rat" ~ "Rat",
-                        common_name == "Kit Fox" ~ "Coyote", # def not a kit fox 
-                        common_name == "White-tailed Deer" ~ "Mule Deer",
-                        common_name == "Domestic Cattle" & deployment_id == "Jalama 2" ~ "Feral Hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
-                        common_name == "White-tailed Jackrabbit" ~ "Coyote",
-                        common_name == "Black-tailed Jackrabbit" ~ "Coyote", # checked and all jackrabbit IDs are coyotes
+                        common_name == "domestic cat" ~ "bobcat", # double checked, def a bobcat
+                        common_name == "eurasian lynx" ~ "bobcat",
+                        common_name == "domestic pig" ~ "feral hog", 
+                        common_name == "wild boar" ~ "feral hog",
+                        common_name == "sus species" ~ "feral hog",
+                        common_name == "neotoma species" ~ "rat/mouse",
+                        common_name == "martes species" ~ "weasel",
+                        common_name == "ursus species" ~ "american black bear",
+                        common_name == "nutria" ~ "rat/mouse", # for now, until we determine if that thing is actually a nutria!
+                        common_name == "western gray squirrel" ~ "california ground squirrel",
+                        common_name == "brown rat" ~ "rat/mouse",
+                        common_name == "woodrat or rat or mouse species" ~ "rat/mouse",
+                        common_name == "rodent" ~ "rat/mouse",
+                        common_name == "california mouse" ~ "rat/mouse",
+                        common_name == "house mouse" ~ "rat/mouse",
+                        common_name == "muridae family" ~ "rat/mouse",
+                        common_name == "geomyidae family" ~ "gopher",
+                        common_name == "kit fox" ~ "coyote", # def not a kit fox 
+                        common_name == "white-tailed deer" ~ "mule deer",
+                        common_name == "domestic cattle" & deployment_id == "Jalama 2" ~ "feral hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
+                        common_name == "white-tailed jackrabbit" ~ "coyote", # based on pics these are always yotes
+                        common_name == "black-tailed jackrabbit" ~ "coyote", # checked and all jackrabbit IDs are coyotes
                         .default = as.character(common_name)
                         )
          ) %>% 
-# need to remove sheep, mouflon?? and other weird IDs
-  filter(ID != "Mouflon", 
-         ID != "Domestic Sheep",
-         ID != "Equus Species",
-         ID != "Domestic Dog",
-         ID != "Domestic Horse") 
+# need to remove domestics, humans, sheep, mouflon?? and other weird IDs
+  filter(common_name != "mouflon", 
+         common_name != "domestic sheep",
+         common_name != "equus species",
+         common_name != "domestic dog",
+         common_name != "human",
+         common_name != "human - camera trapper",
+         common_name != "human - biker",
+         common_name != "domestic cow",
+         common_name != "domestic horse",
+         common_name != "human",
+         common_name != "human-camera trapper",
+         common_name != "human-pedestrian"
+         ) 
 
-
+spp <- unique(mammals$common_name)
 
 ```
 
@@ -131,21 +170,28 @@ mammals <- mammals_unclean %>%
 fix_dates <- mammals %>% 
     ## make the dates nice
   mutate(year = year(timestamp)) %>% 
-  filter(year<2021)
+  filter(year == 2017 | 
+           year == 2018 | 
+           year == 2020 | 
+           year == 2021 |
+           deployment_id == "boat_16oct22" |
+           deployment_id == "boat_17apr22" |
+           deployment_id == "boat_17sep22" |
+           deployment_id == "boat_5apr22" )
+
+  #filter(year<=2021) # for now we have to make this more complicated because WI randomly changed dates of some deployments
 
 # now we need to figure out what the corrections are, and for that we will need this dataset: https://docs.google.com/spreadsheets/d/1-gLml8H2stC2Va9H42tWLylx-5f1r8m4BDMKnsBUHl8/edit?usp=sharing (downloaded csv of one tab)
 timestamp_corrections1 <- read_csv(here("data/incorrect_timestamps.csv")) 
 
 timestamp_corrections <- timestamp_corrections1 %>% 
   rename(deployment_id = filename) %>% 
-  mutate(real_start = as.POSIXct(real_start, tz=Sys.timezone())) %>% 
-  mutate(recorded_start = as.POSIXct(recorded_start, tz=Sys.timezone())) %>% 
-  mutate(real_end = as.POSIXct(real_end, tz=Sys.timezone())) %>% 
-  mutate(recorded_end = as.POSIXct(recorded_end, tz=Sys.timezone())) %>% 
-  #mutate(real_start = as.Date(real_start, format = "%m/%d/%y"))
-  
+  mutate(real_start = mdy_hm(real_start)) %>% 
+  mutate(recorded_start = mdy_hm(recorded_start)) %>% 
+  mutate(real_end = mdy_hm(real_end)) %>% 
+  mutate(recorded_end = mdy_hm(recorded_end)) %>% 
   mutate(correction = difftime(real_start, recorded_start, units = "mins")) %>%  #gives us the # minutes to add to the recorded time to correct the timestamp
-  select(deployment_id, correction)
+  dplyr::select(deployment_id, correction)
 
 #test_correct <- timestamp_corrections %>% 
 #  mutate(calculated_end = recorded_end + correction) # it works!!
@@ -156,16 +202,25 @@ timestamp_corrections <- timestamp_corrections1 %>%
 fixed_dates <- left_join(fix_dates, timestamp_corrections, by = join_by(deployment_id)) %>%  # pop the correction time in to the deployments it applies to
   # overwrite timestamp column with correct date
   mutate(timestamp = timestamp + correction) %>% 
-  select(!c(correction, year)) # take these bad bois out
+  dplyr::select(!c(correction, year)) # take these bad bois out
   
 
 # join the two datasets back together!
 mammals_correctdates <- mammals %>% 
-  filter(year(timestamp)>2021) # need to remove the bad dates from the original dataset
+    filter(year(timestamp) == 2022 | 
+           year(timestamp) == 2023 ) %>% 
+    filter(deployment_id != "boat_16oct22") %>% 
+    filter(deployment_id != "boat_17apr22") %>% 
+    filter(deployment_id != "boat_17sep22") %>% 
+    filter(deployment_id != "boat_5apr22" ) # need to remove the bad dates from the original dataset
+  #filter(year(timestamp)>2021) # no longer this simple
+
+#mammals_incorrectdates <- mammals %>% 
+#  filter(year(timestamp)<=2021) # just to check (right now same # rows as 'fixed dates' so that's great)
 
 ## and do some downstream cleaning like removing useless columns
 mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>% 
-  select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects, behavior1, behavior2, prey_or_item) %>% 
+  dplyr::select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects, behavior1, behavior2, prey_or_item) %>% 
   mutate(day = day(timestamp)) %>% 
   mutate(month = month(timestamp)) %>% 
   mutate(year = year(timestamp)) %>% 
@@ -178,28 +233,122 @@ mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>%
 
 ```{r add in metadata}
 
-metadata <- read_csv(here("data/site_metadata.csv")) %>% 
+######################## "monthly" deployment data ######################## 
+
+deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_29jul2024.csv")) %>% 
+  clean_names() %>% 
+  rename(sitename = camera_name, 
+         maint_month = month,
+         deployment_id = filename_prefix) %>% 
+  
+  # need to rename some file prefixes to match what is in mammals post-cleaning (ie adding underscores)
+  mutate(deployment_id = str_replace(deployment_id, "pp17apr22", "pp_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "boatcam17apr22", "boat_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "pb28apr22", "pb_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "gov17apr22", "gov_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "nvs28apr22", "nvs_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "pl17apr22", "pl_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "cove17apr22", "cove_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "bc28apr22", "bc_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "bc17apr22", "bc_17apr22")) %>%
+  mutate(deployment_id = str_replace(deployment_id, "pd28apr22", "pd_28apr22")) %>% 
+  filter(!is.na(deployment_id)) %>% # will sort out deployments that don't have an ID because I manually added these in
+  
+  # need to fix days active column:
+  mutate(day_end = mdy_hm(day_end)) %>% 
+  mutate(day_start = mdy_hm(day_start)) %>% 
+  mutate(days_active_calcd = difftime(day_end, day_start)) %>% 
+  
+  filter(exclude != "y") # also need to take out the deployments I found a reason to exclude (tipped to sky etc)
+  
+  # also need to figure out how many days active per MONTH
+deployment_data <- deployment_data_original %>%   
+  mutate(each_date = map2(day_start, day_end, ~seq(from = .x, to = .y, by = "day"))) %>% # creates a list of all dates between each start and end date (each row)
+  unnest(each_date) %>% # expands that list to be one row per date
+  mutate(month = month(each_date)) %>%  # extracts month from the dates
+  group_by(deployment_id, month) %>% 
+  mutate(days_per_month = n()) %>% 
+# works if i want to keep all rows i just created but i dont, i want to summarize
+  distinct(deployment_id, month, .keep_all = TRUE) %>%  # lets me keep only rows that are unique for combo of deployment id and month, while keeping all other columns
+  dplyr::select(!each_date) # no longer need this
+  
+
+######################## add on human data to montly deployment data #########################
+humans_est <- read_csv(here("data/human_activity.csv")) %>%  # current best estimate of sitely, monthly human activity (made 8/3/2023)
+  mutate(month = month(dmy(date))) %>% 
+  rename(sitename = site,
+         n_human_shots = n,
+         human_seconds = seconds) %>% 
+  dplyr::select(sitename, month, n_human_shots, human_seconds)
+
+deployment_data_humans <- left_join(deployment_data, humans_est, by = join_by(sitename, month)) %>% 
+  # fill in zeros for where there "is no human activity" - apparently, must check this
+  mutate(human_seconds = case_when(is.na(human_seconds) ~ 0,
+                                   TRUE ~ as.numeric(human_seconds)))
+
+######################## site metadata #########################
+
+metadata <- read_csv(here("data/site_metadata.csv")) %>% # NOT camera_metadata.csv (site_metadata is in camtrapR format)
   clean_names() %>% 
   filter(!str_detect(camera_id, "2")) %>%  # removing second cameras from the metadata (these were placed when the originals were stolen, but in the same place)
-  select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
+  dplyr::select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
   rename(sitename = station)
 
-mammals_clean <- left_join(mammals_fixed_dates, metadata, by = join_by(sitename)) %>% 
-  filter(!is.na(property)) # right now (23 jul) this filters out HROA data because there's not metadata for those cams
+#### add in distance to Jalama (as center of human activity) using package geosphere ####
+
+jalama_loc <- tibble(utm_x = 34.510480, utm_y = -120.501467) 
+jalama_mtx <- cbind(jalama_loc$utm_y, jalama_loc$utm_x) # dist function requires that both distances be in matrix form, this is one way to do that apparently
+# help doc example doesn't say this is necessary but oh well
+
+metadata2 <- metadata %>% 
+  mutate(dist_jalama = (distVincentyEllipsoid(cbind(utm_y, utm_x), jalama_mtx))/1000) # dist returns shortest distance in meters as default
+
+######################## combine and add metadata to mammals data #########################
+
+# this combines deployment (now we've made it monthly) records with metadata for each site
+metadata_by_deployment <- left_join(deployment_data_humans, metadata2, by = join_by(sitename)) %>% 
+  dplyr::select(property, sitename, deployment_id, dist_jalama, imgs_on_sd, days_active_calcd, days_per_month, month, exclude, utm_x, utm_y, human_seconds, habitat_adjacent, habitat_secondary, iz_type, burst_settings, cam_brand) %>% 
+  filter(!is.na(deployment_id)) # filters out all the deployments that haven't been reviewed because i don't put in filename prefix if it hasn't been reviewed on WI
+
+# cross checking that all deployments in the metadata are present in the mammals df and vice versa
+deployments_from_mammalsdf <- mammals_fixed_dates %>% 
+  distinct(deployment_id, month, .keep_all = TRUE)
+
+missing_deployments <- anti_join(deployments_from_mammalsdf, metadata_by_deployment, by = c("deployment_id", "month"))  # anti_join() return all rows from x without a match in y  ]
+
+mammals_clean <- left_join(mammals_fixed_dates, metadata_by_deployment, by = c("deployment_id", "month")) %>% 
+  rename(sitename = sitename.x) %>%  #got two of these in the join
+  dplyr::select(!sitename.y) %>% 
+  filter(!is.na(property)) # right now (23 jul 2024) this filters out HROA data because there's not metadata for those cams
+
+###################################################################
+
+#metadata <- read_csv(here("data/site_metadata.csv")) %>% 
+#  clean_names() %>% 
+#  filter(!str_detect(camera_id, "2")) %>%  # removing second cameras from the metadata (these were placed when the originals were stolen, but in the same place)
+#  dplyr::select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
+#  rename(sitename = station)
+
+#mammals_clean <- left_join(mammals_fixed_dates, metadata, by = join_by(sitename)) %>% 
+#  filter(!is.na(property)) # right now (23 jul) this filters out HROA data because there's not metadata for those cams
 
 ```
 
 
-## Ok! Now we can visualize and play with the nice clean data (I hope)
+## Ok! Now we can organize and play with the nice clean data (I hope). A summary:
 
-```{r some visualizations}
+```{r some tables}
 
 ########################################################################################
 
 ######### make table of total images by deployment_name ###########
 count_site <- mammals_clean %>%
-  count(sitename) %>% 
-  rename(n_images_total = n) # rename n to be more informative
+#  count(sitename) %>% 
+#  rename(n_images_total = n) # rename n to be more informative
+  distinct(sitename, month, .keep_all = TRUE) %>% 
+  group_by(sitename) %>%  # makes a summary table of # images of humans per deployment_id
+  summarise(n_images_total = sum(imgs_on_sd))
+  
 
 
 ########################################################################################
@@ -221,25 +370,24 @@ count_species_site <- mammals_clean %>%
 ########################################################################################
 
 ######### make table of TOTAL wild animal activity ( = incidences that weren't empty, people, or domestic animals) summed across deployment_ids ###########
-#count_activity <- mammals_clean %>%
-#  filter(species != "empty") %>% 
-#  filter(species != "person")%>% 
-#  filter(species != "human")%>% 
-#  filter(species != "dog")%>% 
-#  filter(species != "domestic dog")%>% 
-#  filter(species != "equestrian") %>% 
-#  count(deployment_name) %>%  # makes a summary table of # images per species per deployment_id
-#  rename(n_animal_imgs = n) # rename n to be more informative
+count_activity <- mammals_clean %>%
+  filter(common_name != "empty") %>% 
+  filter(common_name != "person")%>% 
+  filter(common_name != "human")%>% 
+  filter(common_name != "dog")%>% 
+  filter(common_name != "domestic dog")%>% 
+  filter(common_name != "equestrian") %>% 
+  count(sitename) %>%  # makes a summary table of # images per common_name per deployment_id
+  rename(n_animal_imgs = n) # rename n to be more informative
 
 
 ########################################################################################
 
-######### make table of total human activity ( = incidences that weren't empty, people, or domestic animals) summed across deployment_ids ###########
-#human_activity <- mammals_clean %>%
-#  filter(species == "person"|species == "human"|species == "dog"|species == "domestic dog"|species == "equestrian") %>% 
-#  count(deployment_name) %>%  # makes a summary table of # images of humans per deployment_id
-#  rename(n_human_imgs = n) # rename n to be more informative
-
+######### make table of total human activity summed across deployment_ids ###########
+human_activity <- mammals_clean %>%
+  distinct(sitename, month, .keep_all = TRUE) %>% 
+  group_by(sitename) %>%  # makes a summary table of # images of humans per deployment_id
+  summarise(human_activity = sum(human_seconds))
 ########################################################################################
 
 ######### make table number of wildlife species at each site ###########
@@ -253,19 +401,6 @@ num_species_site <- mammals_clean %>%
   
 ########################################################################################
 
-
-######### make table one big summary table by site ###########
-
-#camera_activity_summary <- full_join(count_site, count_activity,  by = join_by(deployment_name)) %>% 
-#  full_join(human_activity, by = join_by(deployment_name)) %>%
-#  full_join(num_species_site, by = join_by(deployment_name)) %>% 
-#  mutate(percent_animals = (n_animal_imgs/n_images_total)*100) %>% 
-#  mutate(deployment_name = fct_relevel(deployment_name, c("Gato", "Kayak (St. Augustine West)", "Llegua" , "Auggie's", "Rennie's", "Bulito", "Panochas", "Little Drake's", "Sacate", "Alegria", "Caliente"))) %>%  # relevel sites so they're in a N > S order
-#  arrange(deployment_name)
-
-#kable(camera_activity_summary
-#      ,col.names = c("Camera Location (N to S)", "Total Images Taken" , "Number of Animal Sightings", "Number of Human Sightings", "Number of Unique Species", "Percent of Images Containing Animals")
-#      )
 
 ```
 
@@ -295,7 +430,8 @@ trapnights_deployment <- mammals_clean %>%
 # then sum all deployment dates
 trapnights_site <- trapnights_deployment %>% 
   group_by(sitename) %>% 
-  summarise(trapnights = sum(trapnights))
+  summarise(trapnights = sum(trapnights)) %>% 
+  mutate(trapnights = as.numeric(trapnights))
 
 # also interested in trapnights per month for each site
 trapnights_month <- mammals_clean %>% 
@@ -341,8 +477,22 @@ activity_site_month_sp <- left_join(mammals_clean, trapnights_month, by = join_b
   unite("sitemonth_id", sitename, month, sep = "_", remove = FALSE)
   
   
-  
 ########################################################################################
+######### make table one big summary table by site ###########
+
+camera_activity_summary <- full_join(count_site, count_activity,  by = join_by(sitename)) %>% 
+  full_join(human_activity, by = join_by(sitename)) %>%
+  full_join(num_species_site, by = join_by(sitename)) %>% 
+  full_join(trapnights_site, by = join_by(sitename)) %>% 
+  mutate(percent_animals = (n_animal_imgs/n_images_total)*100) %>% 
+  mutate_if(is.numeric, format, digits=2,nsmall = 0) %>% 
+  arrange(sitename)
+
+pretty_summary <- kable(camera_activity_summary
+      ,col.names = c("Camera Location (N to S)", "Total Images Taken" , "Number of Mammal Sightings", "Number of Human Sightings", "Number of Unique Species", "Number of Successful Trap Nights", "Percent of Images Containing Mammals")
+      )
+
+pretty_summary
 
 ```
 
@@ -356,8 +506,14 @@ activity_site_month_sp <- left_join(mammals_clean, trapnights_month, by = join_b
 # need to get clean dataset into sitemonth as rownames and column headers as species with counts in cells
 
 count_matrix <- count_species_site %>% 
-  left_join(., metadata, by = join_by(sitename)) %>% 
-  select(sitename, common_name, n_images, burst_settings) %>% 
+  
+  # here's where we should take out "mammal" and "carnivorous mammal"
+  filter(common_name != "mammal",
+         common_name != "carnivorous mammal") %>% 
+  
+  left_join(., metadata, by = join_by(sitename)) %>%
+  filter(!is.na(property)) %>%  # this means they didn't match up to existing metadata and should be left out (filters out bad deployments)
+  dplyr::select(sitename, common_name, n_images) %>% 
   
   pivot_wider(names_from = common_name, # makes 'common_name' col into col headers
               values_from = n_images, # and pulls counts from n col
@@ -375,12 +531,35 @@ count_matrix <- count_species_site %>%
 # Now we are ready to use vegan to calculate a bunch of community ecology metrics - the below taken from An Bui's vegan workshop.
 
 ## How speciose are my communities?
+- one caveat: we lumped all rats & mice into one "species" because they're super hard to tell apart with cam trap footage
 ```{r richness}
 # we can use vegan to count species per site using specnumber() but we need to change the format to wide first
 
 sp.count <- specnumber(count_matrix)
+sp.freq <- specnumber(count_matrix, MARGIN = 2) # relative frequency of each sp. compared to others
 
-# can't do much else until we have site data, which we might not ever have
+sp_df <- sp.count %>% 
+  # convert named vector to dataframe
+  enframe() %>% 
+  rename(sitename = name) %>% 
+  left_join(., metadata, by = join_by(sitename)) # add variables back on 
+
+sp_df$sitename <- factor(sp_df$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
+
+species_plot <- ggplot(sp_df, 
+                       aes(x= sitename, y = value)) +
+                       #aes(x = landtype, y = mean, fill = landtype)) +
+  geom_col(aes(fill = property))+
+  theme_classic()+  
+  ylab("Species Richness")+
+  xlab("Sites North to South")+
+  theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10))
+species_plot
+
 ```
 
 
@@ -402,54 +581,68 @@ shandiv_df <- shannondiv %>%
 # join with metadata: this joins shandiv_df to site_type matching shandiv_df$name to site_type$site
   full_join(., metadata, by = join_by(sitename)) %>% 
   # then calculate mean diversity for each site
-  group_by(sitename) %>% 
-  summarize(mean = mean(value))
+  group_by(property, sitename) %>% 
+  summarize(mean_shandiv = mean(value))
 
-shandiv_df$site <- factor(shandiv_df$site, levels = c("vsc", "vof", "bc", "fort", "nvs", "nbc","cov", "gov", "pd", "pb", "pl", "pp", "dam")) # arranged them north to south
+shandiv_df$sitename <- factor(shandiv_df$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
 
 shandiv_plot <- ggplot(shandiv_df, 
-                       aes(x= site, y = value)) +
-                       #aes(x = landtype, y = mean, fill = landtype)) +
-  geom_col()+
+                       aes(x= sitename, y = mean_shandiv)) +
+  geom_col(aes(fill = property))+
   theme_classic()+  
   ylab("Shannon Diversity Index")+
   xlab("Sites North to South")+
-  theme(axis.text.x = element_blank(),
-    #axis.text.x = element_text(),
-        axis.text.y = element_text(size = 30),
-        axis.title.y = element_text(size = 30),
-        axis.title.x = element_text(size = 30))
+  theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10))
 shandiv_plot
 ```
 
-### relatinoship between shandiv and human activity
+### Is there a correlation between diversity index and human activity?
+caveat: we have a crazy outlier of human activity at Jalama - over 3000 "human seconds" where most are in the hundreds
+including one plot with raw human activity and one with log transformed
 
 ```{r humans and shannon}
-source("DataWrangling/human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
+#source("DataWrangling/human_count_script.R") # a lil script i wrote to get the human data into a nice neat little summary table of human seconds by site. it's called hooman_count
 
-humancount_spring <- hooman_count %>% 
-  filter(date == "10may22" | date == "14may22" | date == "17apr22" | date == "28apr22" | date == "5apr22") %>% 
-  # we only wnt human counts that match the current timeline we're working with, may and april
-  mutate(site = case_when(
-    site == "perb" ~ "pb",
-    site == "gc" ~ "gov",
-    site == "gc2" ~ "gov",
-    TRUE ~ site
-  )) %>% 
-  filter(!is.na(site)) %>% 
-  group_by(site) %>% 
-  summarise(human = sum(n)) 
+#humancount_spring <- hooman_count %>% 
+#  filter(date == "10may22" | date == "14may22" | date == "17apr22" | date == "28apr22" | date == "5apr22") %>% 
+#  # we only wnt human counts that match the current timeline we're working with, may and april
+#  mutate(site = case_when(
+#    site == "perb" ~ "pb",
+#    site == "gc" ~ "gov",
+#    site == "gc2" ~ "gov",
+#    TRUE ~ site
+#  )) %>% 
+#  filter(!is.na(site)) %>% 
+#  group_by(site) %>% 
+#  summarise(human = sum(n)) 
 
-humans_shannondiv <- full_join(shandiv_df, humancount_spring, all = TRUE) %>% 
-  replace_na(list(human = 0)) %>% 
+humans_shannondiv <- full_join(shandiv_df, human_activity) %>% 
+  #replace_na(list(human = 0)) %>% 
   #pivot_longer(cols = n:human, names_to = "human_or_animal", values_to = "count")%>%  # pivot for ggplot (im crying)
   drop_na()
 
 # plotting scatter to see if there's a relationship
 
-scatter <- ggplot(humans_shannondiv, aes(human, value))+
-  geom_point()
+scatter <- ggplot(humans_shannondiv, aes(human_activity, mean_shandiv))+
+  geom_point(aes(colour = property))+
+  theme_classic()+  
+  ylab("Shannon Diversity Index")+
+  xlab("Seconds of Human Activity")
 
+# outlier makes this terrible so log transforming human activity
+
+scatter_logt <- ggplot(humans_shannondiv, aes(log10(human_activity), mean_shandiv))+
+  geom_point(aes(colour = property))+
+  theme_classic()+  
+  ylab("Shannon Diversity Index")+
+  xlab("Log Transformed Seconds of Human Activity")
+
+scatter
+scatter_logt
 ```
 
 
