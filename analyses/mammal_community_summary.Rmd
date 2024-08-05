@@ -28,6 +28,8 @@ library(here)
 library(RColorBrewer)
 library(Polychrome) #package to make palettes witha shit ton of distinct colors
 
+# set general ggplot theme:
+
 
 ```
 
@@ -153,6 +155,7 @@ mammals <- mammals_unclean %>%
 # need to remove domestics, marine mammals, humans, sheep, mouflon?? and other weird IDs
   filter(common_name != "mouflon", 
          common_name != "domestic sheep",
+         common_name != "domestic cattle",
          common_name != "equus species",
          common_name != "domestic dog",
          common_name != "human",
@@ -465,6 +468,10 @@ species_month <- mammals_clean %>%
 ######### make table of unadjusted image count by site by date ###########
 count_site_date <- mammals_clean %>%
   count(sitename, month)  # makes a summary table of # animal sightings per species per deployment_id per month
+
+# to check a below table, don't use
+count_site_date_sp <- mammals_clean %>%
+  count(sitename, month, common_name)  # makes a summary table of # animal sightings per species per deployment_id per month
   
 ########################################################################################
 
@@ -476,10 +483,11 @@ count_month <- mammals_clean %>%
 
 
 ######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by date and site and species ###########
-activity_site_month_sp <- left_join(mammals_clean, trapnights_month, by = join_by(sitename, month)) %>% # first append monthly trapnights to full dataset
+activity_site_month_sp <- left_join(mammals_clean, trapnights_month, by = join_by(sitename, month)) %>% # first append monthly trapnights to full dataset, checked and it doesn't delete any rows
   ungroup()%>%
   group_by(sitename, month, trapnights, burst_settings, common_name) %>% 
-  summarize(total_captures = sum(number_of_objects), # sums number of objects so adjusts by number of animals in image
+  summarize(total_captures = n()
+    #total_captures = sum(number_of_objects), #  this isn't returning the same # as counting rows because sometimes the value isn't 1!!!
             ) %>% # had a hard time with the final columns so I'm tossing it out into a mutate:
   mutate(activity_seconds = ceiling(total_captures/burst_settings))%>%  # adjusts # of captures by the number of images taken in a burst (8 or 10), ceiling rounds UP)
   # need to make trapnights numeric integers in order to adjust by them
@@ -557,6 +565,67 @@ seasonal_mean_humans_plot
 
 
 ### Finally, let's get an idea of mammal beach activity/detection, standardized by effort, across the entire year
+```{r relative abundance}
+########## general mammal relative activity-seconds, NOT standardized by trap night ##########
+
+######### plot #########
+IDcolors <- alphabet.colors(15) # we have 15 spp
+names(IDcolors) <- NULL
+
+countbyspecies <- ggplot(count_species, aes(x = reorder(common_name, -n_images), n_images)) + # reorders so that it displays bars in descending order of count
+  geom_bar(aes(fill = common_name), stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  scale_fill_manual(values = IDcolors)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10),
+        axis.title.x = element_blank())+
+  guides(fill=guide_legend(ncol=2, # splits long ass legend into two cols
+                           title = "Mammal Species") 
+         )+
+  ylab("Number of Images")+
+  xlab("Species")
+
+countbyspecies
+
+### saving ####
+
+png(here("figures/species_freq.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
+countbyspecies
+dev.off()
+
+########## general mammal relative activity-seconds, standardized by burst and trap night ##########
+
+adj_countbyspecies <- activity_site_month_sp %>% 
+  group_by(common_name) %>% 
+  summarise(total_adj_activity = sum(seconds_by_trapnight),
+            total_seconds = sum(activity_seconds)) %>% 
+  ggplot(., aes(x = reorder(common_name, -total_adj_activity), total_adj_activity)) +
+  # ggplot(., aes(x = reorder(common_name, -total_seconds), total_seconds)) + # to check
+  geom_bar(aes(fill = common_name), stat = "identity") + # so i can pass a value to the bar instead of having ggplot count for me
+  scale_fill_manual(values = IDcolors)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, 
+                                   size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10),
+        axis.title.x = element_blank())+
+  guides(fill=guide_legend(ncol=2, # splits long ass legend into two cols
+                           title = "Mammal Species") 
+         )+
+  ylab("Activity Seconds Per Trap Night")+
+  xlab("Species")
+
+png(here("figures/species_freq_bytrapnight.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
+adj_countbyspecies
+dev.off()
+  
+```
+
+
 ```{r activity by season/month}
 
 ### first what does it look like with no standardization
@@ -588,7 +657,7 @@ seasonal_activity_plot
 ### First, activity by species across the study standardized by effort (trap nights)
 ```{r adjusted sp observations}
 
-IDcolors <- alphabet.colors(19)
+IDcolors <- alphabet.colors(15)
 #swatch(IDcolors)
 names(IDcolors) <- NULL # necessary for ggplot to remove the names so it can assign colors correctly?
 
@@ -600,6 +669,8 @@ spp_seasonal_activity_plot <- activity_site_month_sp %>%
     geom_bar(aes(fill = common_name),
            stat = "identity")+
   scale_fill_manual(values = IDcolors)+
+  ylab("Activity Seconds Per Trap Night") +
+  xlab("Month (2022)") +
   theme_classic()
 
 spp_seasonal_activity_plot
@@ -620,11 +691,16 @@ spercent_seasonal_activity_plot <- activity_site_month_sp %>%
              position = "fill", #makes percent stacked
              stat = "identity")+
   scale_fill_manual(values = IDcolors)+
-  ylab("Percent of Total Seconds of Animal Activity")+
+  ylab("Percent of Total Animal Activity (Seconds)")+
   xlab("Month (2022") +
+  guides(fill=guide_legend(title = "Mammal Species"))+
   theme_classic()
 
 spercent_seasonal_activity_plot
+
+png(here("figures/seasonal_community_shift.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+adj_countbyspecies
+dev.off()
 ```
 
 
