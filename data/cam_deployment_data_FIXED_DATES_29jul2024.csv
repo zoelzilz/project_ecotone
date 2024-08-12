@@ -50,33 +50,33 @@ JLDP,,Boneyard Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
 JLDP,,Boneyard Cam,,7-Jan-23,Jan,LOST,,,,,,,,,,,,,,,,,,,,n
 JLDP,,Boneyard Cam,,,Feb,LOST,,,,,,,,,,,,,,,,,,,,n
 JLDP,,Boneyard Cam,,1-Oct-22,Sep,same as previous,100%,,8,,464,9/7/22 12:37,10/1/22 11:29,24,MC,,could not locate on 9/17,yes,,,yes (started to divide deployments up into months),,yes but not renamed,,,n
-JLDP,coj_20jul22,Cojalama Cam,,20-Jul-22,June (late),same as previous,65%,,10,5030,5030,5/31/22 15:21,7/20/22 9:15,50,ZZ MM,,"Cojalama: 6000, 60%",yes,,,yes,,yes,,,n
-JLDP,coja_17sep22,Cojalama Cam,,17-Sep-22,Sep,same as previous,100%,,10,309,309,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,,,yes,,,,,n
-JLDP,,Cojalama Cam,,forgot?,Jul,forgot?,,,10,,,,,,ZZ,,,?,,,,,,,,y
-JLDP,,Cojalama Cam,,21-Aug-22,Aug,fell but was fixed by stranger mid deployment,,,10,,1018,7/30/22 0:00,8/21/22 0:00,6,ZZ,replace dummy lock with master lock 1,,yes,"sign flapping and triggering camera, camera fell over at 7/30 2:54:19 and was fixed at 8/15 :24:12",,all people so no,,,,,n
-JLDP,,Cojalama Cam,,SD CARD NOT COLLECTED,Oct,same as previous,84%,,,30,NA,NA,NA,NA,MC A M,,"""jalama cam 2""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
-JLDP,,Cojalama Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
-JLDP,,Cojalama Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Cojalama Cam,,6-Jan-23,Jan,LOST,,,,,,,,,,,,,,,,,,,,n
-JLDP,,Cojalama Cam,,,Feb,LOST,,,,,,,,,,,,,,,,,,,,n
-JLDP,coca_17sep22,Cojo Canyon Cam,,17-Sep-22,Sep,same as previous,100%,,10,1605,1605,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,marked animals w purple,,yes,,,,,n
-JLDP,coca_20jul22,Cojo Canyon Cam,,20-Jul-22,June (late),same as previous,99%,,10,2487,2497,5/31/22 16:03,7/20/22 9:35,50,ZZ MM,,"Coho canyon: 3417, 99%",yes,,,yes,,yes,,,n
-JLDP,coca_26aug22,Cojo Canyon Cam,,26-Aug-22,Aug,same as previous,,,10,,912,7/30/22 0:00,8/26/22 0:00,27,ZZ,replace dummy lock with master lock 1,,yes,,,yes,,,,,n
-JLDP,coca_30jul22,Cojo Canyon Cam,,30-Jul-22,Jul,same as previous,,,10,,650,7/20/22 9:37,7/30/22 14:24,10,ZZ,,,yes,confirmed 25 jul 23,,yes,,,,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
-JLDP,,Cojo Canyon Cam,,SD CARD NOT COLLECTED,Oct,same as previous,99%,,,3265,NA,NA,NA,NA,MC A M,,"""jalama cam 4""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
-JLDP,,Cojo Canyon Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
-JLDP,,Cojo Canyon Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Cojo Canyon Cam,,not visited,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Cojo Canyon Cam,,,Feb,LOST,,,,,,,,,,,,,,,,,,,,n
-JLDP,cog_30jul22,Cojo Gate Cam,,30-Jul-22,Jul,fallen again - moved,,,10,,2610,7/20/22 9:29,7/30/22 14:19,10,ZZ,,,yes,confirmed 25 jul 23,,yes,,,,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
-JLDP,coga_20jul22,Cojo Gate Cam,,20-Jul-22,June (late),fallen over - moved to new location,99%,,10,810,810,5/31/22 15:36,7/16/22 14:56,46,ZZ MM,,screen black on 7/16 @ 2:56pm; picked up by me 7/20/2022 9:25:00,yes,,,yes,,yes,,,n
-JLDP,coga_26aug22,Cojo Gate Cam,,26-Aug-22,Aug,turned to face ocean by stranger,,,10,,660,7/30/22 0:00,8/26/22 0:00,20,ZZ,replace dummy lock with master lock 1,,yes,someone turned camera to face ocean 8/19 11:42,,yes,,,,Movd:,n
-JLDP,coga_17sep22,Cojo Gate Cam,,17-Sep-22,Sep,same as previous,100%,,10,2760,2760,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,marked animals w purple,,yes,,,,,n
-JLDP,,Cojo Gate Cam,,SD CARD NOT COLLECTED,Oct,same as previous,91%,,,453,NA,NA,NA,NA,MC A M,,"""jalama cam 3""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
-JLDP,,Cojo Gate Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
-JLDP,,Cojo Gate Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Cojo Gate Cam,,not visited,Jan,(found it later),,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Cojo Gate Cam,,26-Feb-23,Feb,found!! miraculously still there,,,,,,,,,,,,,,,,,,,,n
+JBCP,coj_20jul22,Cojalama Cam,,20-Jul-22,June (late),same as previous,65%,,10,5030,5030,5/31/22 15:21,7/20/22 9:15,50,ZZ MM,,"Cojalama: 6000, 60%",yes,,,yes,,yes,,,n
+JBCP,coja_17sep22,Cojalama Cam,,17-Sep-22,Sep,same as previous,100%,,10,309,309,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,,,yes,,,,,n
+JBCP,,Cojalama Cam,,forgot?,Jul,forgot?,,,10,,,,,,ZZ,,,?,,,,,,,,y
+JBCP,,Cojalama Cam,,21-Aug-22,Aug,fell but was fixed by stranger mid deployment,,,10,,1018,7/30/22 0:00,8/21/22 0:00,6,ZZ,replace dummy lock with master lock 1,,yes,"sign flapping and triggering camera, camera fell over at 7/30 2:54:19 and was fixed at 8/15 :24:12",,all people so no,,,,,n
+JBCP,,Cojalama Cam,,SD CARD NOT COLLECTED,Oct,same as previous,84%,,,30,NA,NA,NA,NA,MC A M,,"""jalama cam 2""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Cojalama Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
+JBCP,,Cojalama Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Cojalama Cam,,6-Jan-23,Jan,LOST,,,,,,,,,,,,,,,,,,,,n
+JBCP,,Cojalama Cam,,,Feb,LOST,,,,,,,,,,,,,,,,,,,,n
+JBCP,coca_17sep22,Cojo Canyon Cam,,17-Sep-22,Sep,same as previous,100%,,10,1605,1605,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,marked animals w purple,,yes,,,,,n
+JBCP,coca_20jul22,Cojo Canyon Cam,,20-Jul-22,June (late),same as previous,99%,,10,2487,2497,5/31/22 16:03,7/20/22 9:35,50,ZZ MM,,"Coho canyon: 3417, 99%",yes,,,yes,,yes,,,n
+JBCP,coca_26aug22,Cojo Canyon Cam,,26-Aug-22,Aug,same as previous,,,10,,912,7/30/22 0:00,8/26/22 0:00,27,ZZ,replace dummy lock with master lock 1,,yes,,,yes,,,,,n
+JBCP,coca_30jul22,Cojo Canyon Cam,,30-Jul-22,Jul,same as previous,,,10,,650,7/20/22 9:37,7/30/22 14:24,10,ZZ,,,yes,confirmed 25 jul 23,,yes,,,,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
+JBCP,,Cojo Canyon Cam,,SD CARD NOT COLLECTED,Oct,same as previous,99%,,,3265,NA,NA,NA,NA,MC A M,,"""jalama cam 4""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Cojo Canyon Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
+JBCP,,Cojo Canyon Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Cojo Canyon Cam,,not visited,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Cojo Canyon Cam,,,Feb,LOST,,,,,,,,,,,,,,,,,,,,n
+JBCP,cog_30jul22,Cojo Gate Cam,,30-Jul-22,Jul,fallen again - moved,,,10,,2610,7/20/22 9:29,7/30/22 14:19,10,ZZ,,,yes,confirmed 25 jul 23,,yes,,,,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
+JBCP,coga_20jul22,Cojo Gate Cam,,20-Jul-22,June (late),fallen over - moved to new location,99%,,10,810,810,5/31/22 15:36,7/16/22 14:56,46,ZZ MM,,screen black on 7/16 @ 2:56pm; picked up by me 7/20/2022 9:25:00,yes,,,yes,,yes,,,n
+JBCP,coga_26aug22,Cojo Gate Cam,,26-Aug-22,Aug,turned to face ocean by stranger,,,10,,660,7/30/22 0:00,8/26/22 0:00,20,ZZ,replace dummy lock with master lock 1,,yes,someone turned camera to face ocean 8/19 11:42,,yes,,,,Movd:,n
+JBCP,coga_17sep22,Cojo Gate Cam,,17-Sep-22,Sep,same as previous,100%,,10,2760,2760,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,marked animals w purple,,yes,,,,,n
+JBCP,,Cojo Gate Cam,,SD CARD NOT COLLECTED,Oct,same as previous,91%,,,453,NA,NA,NA,NA,MC A M,,"""jalama cam 3""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Cojo Gate Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
+JBCP,,Cojo Gate Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Cojo Gate Cam,,not visited,Jan,(found it later),,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Cojo Gate Cam,,26-Feb-23,Feb,found!! miraculously still there,,,,,,,,,,,,,,,,,,,,n
 JLDP,cov_14may22,Cove Cam,,14-May-22,May,same as previous,,,8,,6864,4/17/22 11:41,5/14/22 13:24,23,ZZ SC,,Cove cam still good,yes,,,yes,,,,,n
 JLDP,cov_20jul22,Cove Cam,,30-Jul-22,Jul,moved - rock fall in front of existing position,,,8,,6838,6/18/22 22:31,7/30/22 8:23,42,ZZ,,,yes,something weird triggering camera,,yes,,yes,,,n
 JLDP,cove_12nov22,Cove Cam,,12-Nov-22,Nov,same as previous,100%,,,904,952,10/16/22 15:08,11/12/22 14:37,27,ME A F LW,,left card in,yes,but there's a card w photos on it? looks like they came back to get it @2pm,,yes,,yes but not renamed,,,n
@@ -110,24 +110,24 @@ JLDP,gov2_16oct22,Govies Cliff Cam,Government Point Cam 1,16-Oct-22,Oct,same as 
 JLDP,,Govies Cliff Cam,Government Point Cam 1,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
 JLDP,,Govies Cliff Cam,Government Point Cam 1,6-Jan-23,Jan,same as previous,,,,,,,,,,,,,,,,,,,,n
 JLDP,,Govies Cliff Cam,Government Point Cam 1,26-Feb-23,Feb,,,,,,,,,,,,,,,,,,,,,n
-JLDP,jal2_13aug22,Jalama 2 Cam,,26-Aug-22,Aug,same as previous,,,10,,30,8/19/22 0:00,8/26/22 0:00,7,ZZ MM,replace dummy lock with master lock 1,,yes,cant remember what happened before the 19th,,,yes,,,,n
-JLDP,jal2_17sep22,Jalama 2 Cam,,17-Sep-22,Sep,same as previous,87%,,10,180,180,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,,,yes,,,,,n
-JLDP,jal2_6jan23,Jalama 2 Cam,,6-Jan-23,Jan,same as previous,63%,,,683,840,10/13/22 0:00,1/5/23 0:00,84,ZZ RH,,,yes,"lots of gaps, but maybe real",,yes,yes,,,,n
-JLDP,,Jalama 2 Cam,,20-Jul-22,June (late),crooked - fixed,0%,,10,90,90,5/31/22 15:05,5/31/22 15:09,0,ZZ MM,,"batteries died immediately, only photos of us; didn't have replacements",yes,,,no animal photos,,yes,,,n
-JLDP,,Jalama 2 Cam,,30-Jul-22,Jul,same as previous,replaced - 100%,,10,0,0,na,na,0,ZZ,,,na,,,na,,na,,,y
-JLDP,,Jalama 2 Cam,,NOT VISITED,Oct,same as previous,,,,,NA,NA,NA,NA,MC A M,,i think they forgot to do this one,,SD CARD NOT COLLECTED,,NA,,,,,n
-JLDP,,Jalama 2 Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
-JLDP,,Jalama 2 Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Jalama 2 Cam,,,Feb,REMOVED,,,,,,,,,,,,,,,,,,,,n
-JLDP,jal_13aug22,Jalama Cam,,26-Aug-22,Aug,same as previous,,,10,,4212,7/30/22 0:00,8/13/22 0:00,14,ZZ MM,replace dummy lock with master lock 1,,yes,died 13 aug 22 at 10:16:27,,yes,yes,,,,n
-JLDP,jal_13nov22,Jalama Cam,,12-Nov-22,Nov,same as previous,,60,10,,15260,9/17/22 13:51,11/12/22 14:26,56,ME A F LW,,sd card not collected last month,yes,several hour long nighttime dance party in front of the camera,,yes,yes,,,,n
-JLDP,jal_17sep22,Jalama Cam,,17-Sep-22,Sep,same as previous,100%,,10,3111,3111,8/26/22 0:00,9/17/22 0:00,22,EW MC,,the SD card in here was labed VSFB but was the one in the Jalama case,yes,,,yes,yes,,,,n
-JLDP,jal_20jul22,Jalama Cam,,20-Jul-22,June (late),adjusted angle south,72%,,10,12430,12431,5/31/22 14:40,7/20/22 9:00,50,ZZ MM,,"buckwheat grown in front; Card in RIZ S; Adjusted angle south; Jalama: 16320, 65%",yes,,,yes,yes,yes,,,n
-JLDP,jal_30jul22,Jalama Cam,,30-Jul-22,Jul,same as previous,,,10,,3890,7/20/22 9:02,7/30/22 13:57,93,ZZ,,,yes,,,yes,yes,"yes (two drives, not google drive)",,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
-JLDP,,Jalama Cam,,SD CARD NOT COLLECTED,Oct,same as previous,79%,,,7260,NA,NA,NA,NA,MC A M,,"""jalama cam 1""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
-JLDP,,Jalama Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Jalama Cam,,6-Jan-23,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
-JLDP,,Jalama Cam,,,Feb,LOST,,,,,,,,,,,,,,,na,,,,,n
+JBCP,jal2_13aug22,Jalama 2 Cam,,26-Aug-22,Aug,same as previous,,,10,,30,8/19/22 0:00,8/26/22 0:00,7,ZZ MM,replace dummy lock with master lock 1,,yes,cant remember what happened before the 19th,,,yes,,,,n
+JBCP,jal2_17sep22,Jalama 2 Cam,,17-Sep-22,Sep,same as previous,87%,,10,180,180,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,,,yes,,,,,n
+JBCP,jal2_6jan23,Jalama 2 Cam,,6-Jan-23,Jan,same as previous,63%,,,683,840,10/13/22 0:00,1/5/23 0:00,84,ZZ RH,,,yes,"lots of gaps, but maybe real",,yes,yes,,,,n
+JBCP,,Jalama 2 Cam,,20-Jul-22,June (late),crooked - fixed,0%,,10,90,90,5/31/22 15:05,5/31/22 15:09,0,ZZ MM,,"batteries died immediately, only photos of us; didn't have replacements",yes,,,no animal photos,,yes,,,n
+JBCP,,Jalama 2 Cam,,30-Jul-22,Jul,same as previous,replaced - 100%,,10,0,0,na,na,0,ZZ,,,na,,,na,,na,,,y
+JBCP,,Jalama 2 Cam,,NOT VISITED,Oct,same as previous,,,,,NA,NA,NA,NA,MC A M,,i think they forgot to do this one,,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Jalama 2 Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
+JBCP,,Jalama 2 Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Jalama 2 Cam,,,Feb,REMOVED,,,,,,,,,,,,,,,,,,,,n
+JBCP,jal_13aug22,Jalama Cam,,26-Aug-22,Aug,same as previous,,,10,,4212,7/30/22 0:00,8/13/22 0:00,14,ZZ MM,replace dummy lock with master lock 1,,yes,died 13 aug 22 at 10:16:27,,yes,yes,,,,n
+JBCP,jal_13nov22,Jalama Cam,,12-Nov-22,Nov,same as previous,,60,10,,15260,9/17/22 13:51,11/12/22 14:26,56,ME A F LW,,sd card not collected last month,yes,several hour long nighttime dance party in front of the camera,,yes,yes,,,,n
+JBCP,jal_17sep22,Jalama Cam,,17-Sep-22,Sep,same as previous,100%,,10,3111,3111,8/26/22 0:00,9/17/22 0:00,22,EW MC,,the SD card in here was labed VSFB but was the one in the Jalama case,yes,,,yes,yes,,,,n
+JBCP,jal_20jul22,Jalama Cam,,20-Jul-22,June (late),adjusted angle south,72%,,10,12430,12431,5/31/22 14:40,7/20/22 9:00,50,ZZ MM,,"buckwheat grown in front; Card in RIZ S; Adjusted angle south; Jalama: 16320, 65%",yes,,,yes,yes,yes,,,n
+JBCP,jal_30jul22,Jalama Cam,,30-Jul-22,Jul,same as previous,,,10,,3890,7/20/22 9:02,7/30/22 13:57,93,ZZ,,,yes,,,yes,yes,"yes (two drives, not google drive)",,FOUND ON EXTERNAL HD FROM LAPTOP RECOVERY,n
+JBCP,,Jalama Cam,,SD CARD NOT COLLECTED,Oct,same as previous,79%,,,7260,NA,NA,NA,NA,MC A M,,"""jalama cam 1""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Jalama Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Jalama Cam,,6-Jan-23,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
+JBCP,,Jalama Cam,,,Feb,LOST,,,,,,,,,,,,,,,na,,,,,n
 VSFB,vj_15oct22,Jolluru Cam,,15-Oct-22,Oct,new camera,100%,60,10,300,300,9/7/22 14:00,10/15/22 13:21,38,MC A A M,,,yes,,,yes,,yes but not renamed,,,n
 VSFB,,Jolluru Cam,,NA,Aug,NA,NA,,,NA,NA,NA,NA,,ZZ MM,place camera,,NA,,,NA,,,,,y
 VSFB,,Jolluru Cam,,7-Sep-22,Sep,placed,NA,,,NA,NA,NA,NA,NA,ZZ,check next week,,NA,,,,,,,,y
@@ -265,7 +265,7 @@ JLDP,,Percos Log Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
 JLDP,,Percos Log Cam,,7-Jan-23,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
 JLDP,,Percos Log Cam,,,Feb,LOST,,,,,,,,,,,,,,,na,,,,,n
 JLDP,NA,Percos Post Cam,,20-Aug-22,Aug,"switched to other side of post and moved lower, screwed in and locked w master lock 1",100%,,8,5000,,,,0,ZZ MM,armor and lock with master lock 1,"5000 photos, 100%; moved",NA,DATA LOSS,,na,,WHERE ARE THESE IMAGES,,,y
-JLDP,pp_14may22,Percos Post Cam,,14-May-22,May,same as previous,,,8,,7224,4/5/22 11:00,5/14/22 0:00,27.05972222,ZZ SC,,mustard waving in front constantly,yes,date still incorrect (4/5/2022 11:00ish - 5/14/2022),yes,yes,,,,,n
+JLDP,pp_14may22,Percos Post Cam,,14-May-22,May,same as previous,,,8,,7224,4/17/22 11:00,5/14/22 0:00,27.05972222,ZZ SC,,mustard waving in front constantly,yes,date still incorrect (4/5/2022 11:00ish - 5/14/2022) < this is what I wrote but I think I meant 4/17/22?? So I've changed it 10 aug 2024,yes,yes,,,,,n
 JLDP,pp_17apr22,Percos Post Cam,,17-Apr-22,April,moved to point down beach on 4/5,alive,30,8,,2224,4/5/22 10:00,4/17/22 11:00,12,ZZ,,date incorrect - can calibrate with photo taken on phone of post cam? (4/5/2022 10:00 am - = 4/17/2022 11:00 am),yes,coyote with sea otter!,,yes,,yes,18-Jul-24,,n
 JLDP,pp_17sept22,Percos Post Cam,,17-Sep-22,Sep,same as previous,100%,60,8,full (30k +),33274,8/20/22 11:48,9/7/22 19:52,18,ME MH,fix the foliage in front,sd card full 7 sep 22 19:52,yes,branch fell in front on 8/25 - NIGHTIME footage is pretty useless. originally dated incorrectly (16 oct 22) but i'm changing now (18 oct 2023) and pulling them from the sorted folders,,yes,,yes,,,n
 JLDP,pp_18jun22,Percos Post Cam,,18-Jun-22,June,same as previous,100%,30,8,,12280,5/14/22 12:31,6/18/22 12:24,34.96666667,ZZ MC ME,,"mustard waving in front constantly; 100% batt (even changed battery type to match lithium), 10k photos, lots of vegetation",yes,date still incorrect (start 5/14/2022),,yes,,no,,,n

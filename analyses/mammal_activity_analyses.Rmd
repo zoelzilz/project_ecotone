@@ -5,42 +5,61 @@ date: "2024-07-23"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+# setting all chunks not to display anything but output so i can easily knit and send to hillary
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(car)
+library(ggpubr)
+library(ggprism) # paste pvalues
+library(geosphere)
 library(lubridate)
 library(hms)
 library(janitor)
+library(kableExtra)
+library(formattable)
+library(webshot2)
 library(vegan)
 library(here)
 library(RColorBrewer)
+library(rstatix)
 library(Polychrome) #package to make palettes witha shit ton of distinct colors
-library(geosphere)
-library(lme4)
-library(MASS)
-library(glmmTMB)
+library(MuMIn)
+library(corrplot)
 library(DHARMa)
-library(effects)
+library(AICcmodavg)
+
 ```
 
-# Mammal Activity Modeling ~ Humans
-
-## Pull and Clean Data
+# Catch All Markdown for Mammal Community and Activity Summary Figures and Stats
+### Behind the Scenes
+#### Pull and Clean Data
 ```{r data import and cleaning}
+#### data versioning log ###
+# 23 jul 2024: had to manually paste in some NVS photos with the correct date 
+# 31 jul using what's hopefully final version, there will be new date issues I think
+# 7 aug incorporating real human data, although the humans are IDd with computer vision it's very reliable so we're using it! same date issues as last version i hope
 
-mammals_unclean <- read_csv(here("data/WI_data_22jul2024/image_classifications_edited_23jul24.csv")) # had to manually paste in some NVS photos with the correct date 23 jul 2024
+
+# let's see what kind of mess we're working with
+mammals_unclean <- read_csv(here("data/WI_data_7aug2024/classifications_7aug2024.csv"))
+mammals_prev <- read_csv(here("data/WI_data_31jul2024/image_classifications_31jul2024.csv")) 
 
 
-mammals <- mammals_unclean %>%
+#unique(mammals_unclean$behavior)
+
+mammals <- mammals_prev %>%
   filter(class == "Mammalia") %>% 
-  filter(!identified_by == "Computer vision") %>%  # removes about 11k rows, some of them from hollister anyway
+  #filter(!identified_by == "Computer vision") %>%  # need to retain these because they're people pics
   
   # ugh annoying unclean inconsistent capitals
   mutate(filename = tolower(filename)) %>% 
+  mutate(common_name = tolower(common_name)) %>% 
   
   # ugh ugh the filenames where i forgot to put a "_"
   mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
@@ -48,13 +67,15 @@ mammals <- mammals_unclean %>%
   mutate(filename = str_replace(filename, "pb28apr22", "pb_28apr22")) %>% 
   mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
   mutate(filename = str_replace(filename, "nvs28apr22", "nvs_28apr22")) %>% 
-  mutate(filename = str_replace(filename, "pl17apr22", "pl_17apr22")) %>% 
+  mutate(filename = str_replace(filename, "pl17apr22", "pl_17apr22")) %>%  
   mutate(filename = str_replace(filename, "cove17apr22", "cove_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "bc28apr22", "bc_28apr22")) %>%
   mutate(filename = str_replace(filename, "bc17apr22", "bc_17apr22")) %>%
-  mutate(filename = str_replace(filename, "pd28apr22", "pd_28apr22")) %>%
-  
-  # also inconsistent sitenames:
+  mutate(filename = str_replace(filename, "bc28apr22", "bc_28apr22")) %>%
+  mutate(filename = str_replace(filename, "pd28apr22", "pd_28apr22")) %>% 
+  mutate(filename = str_replace(filename, "gov_12nov22", "big_12nov22")) %>%
+  mutate(filename = str_replace(filename, "gov_17sep", "big_17sep")) %>%
+
+    # also inconsistent sitenames:
   mutate(sitename = case_when(deployment_id == "Boneyard 09/07/2022" ~ "Boneyard Cam",
                               deployment_id == "Old Fencepost Cam April 2022" ~ "Old Fencepost Cam",
                               deployment_id == "Percos Post March 2022" ~ "Percos Post Cam",
@@ -65,63 +86,126 @@ mammals <- mammals_unclean %>%
   
   mutate(deployment_id = paste0(str_extract(filename, "[^_]*_[^_]*"))) %>%  # return only the first 2 substrings (e.g. cam name and dmy) of the filenames - this is very sloppy and I hate it but oh well
   
-  filter(deployment_id != "gov_17sep22") %>%  # found out downstream that deployment from big cojo 17 sep was uploaded to WI twice, removing the one with the confusing filename
+  #English translation:
+    # [^_]* = as many non-underscore characters as possible
+    # _ = an underscore
+    # [^_]* = as many non-underscore characters as possible
+    # [...] is a character class. [abc] means "a or b or c", and [^abc] means anything but a or b or c.
+  
+  # editing the csv messed up the dates which were so nice before
+  #mutate(timestamp = as.POSIXct(timestamp, tz=Sys.timezone()))# %>% # THIS IS SUPER INCONSISTENT, SOMETIMES THE DATA IMPORTS WITH NORMAL DATES, SOMETIMES NOT
+  
+  ## main thing to do is clean up the behavior column which is a mess. Specifically need to separate all of the "holding" etc behaviors from the item
+  mutate(behavior = tolower(behavior)) %>% 
+  mutate(behavior_clean = str_replace(behavior, "carrying", "carrying;")) %>% 
+  mutate(behavior_clean = str_replace(behavior_clean, "holding food", "holding;")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "holding ", "holding;")) %>% 
+  mutate(behavior_clean = str_replace(behavior_clean, "eating ", "eating;")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "foraging", "foragin")) %>% # i think this is the only way to do this given the nature of this typo
+  mutate(behavior_clean = str_replace(behavior_clean, "foragin", "nose to ground")) %>%
+  mutate(behavior_clean = str_replace(behavior_clean, "flighting", "fighting")) %>%
+  mutate(behavior_clean = str_remove(behavior_clean, "\\[")) %>%
+  mutate(behavior_clean = str_remove(behavior_clean, "\\]")) %>%
+# there are many more behaviors to clean but for now, moving on to cleaning identifications because we are likely not going to focus on behavior
 
+
+  separate(behavior, c("behavior_clean", "prey_or_item"), sep = ";", remove = FALSE) %>% 
+  separate(behavior, c("behavior1", "behavior2"), sep = ",", remove = TRUE) %>%  # separates out behaviors if there are multiple
+  
   uncount(number_of_objects, # "uncounts" i.e. makes specified number of copies of the row based on the # in how_many
           # we are basically multipling the number captures of animals by the number of animals in the capture - this is fine...
           
           .remove = FALSE #check your work by including .remove = FALSE... this keeps the column where the #of copies to make was stored. default is to delete it
           ) %>% 
-  mutate(common_name = tolower(common_name)) %>% 
-  
-  mutate(ID = case_when(common_name == "canis species" ~ "coyote",
+ 
+# going to make some assumptions about IDs here:
+  mutate(common_name = case_when(common_name == "canis species" ~ "coyote",
                         common_name == "canine family" ~ "coyote",
                         common_name == "cervus species" ~ "mule deer",
-                        common_name == "cervus species" ~ "mule deer",
+                        common_name == "cervidae family" ~ "mule deer",
+                        common_name == "cetartiodactyla order" ~ "mule deer",
                         common_name == "odocoileus species" ~ "Mule Deer",
                         common_name == "elk" ~ "mule deer", # def not an elk
                         common_name == "even-toed ungulate" ~ "mule deer",
                         common_name == "pronghorn" ~ "mule deer", 
-                        common_name == "vulpes species" ~ "grey gox",
+                        common_name == "vulpes species" ~ "grey fox",
                         common_name == "lepus species" ~ "brush rabbit", 
-                        common_name == "domestic cat" ~ "Bobcat", # double checked, def a bobcat
-                        common_name == "Domestic Pig" ~ "Feral Hog", 
-                        common_name == "Wild Boar" ~ "Feral Hog",
-                        common_name == "Sus Species" ~ "Feral Hog",
-                        common_name == "Neotoma Species" ~ "Rat",
-                        common_name == "Martes Species" ~ "Weasel",
-                        common_name == "Ursus Species" ~ "American Black Bear",
-                        common_name == "Nutria" ~ "Rat", # for now, until we determine if that thing is actually a nutria!
-                        common_name == "Western Gray Squirrel" ~ "California Ground Squirrel",
-                        common_name == "Brown Rat" ~ "Rat",
-                        common_name == "Kit Fox" ~ "Coyote", # def not a kit fox 
-                        common_name == "White-tailed Deer" ~ "Mule Deer",
-                        common_name == "Domestic Cattle" & deployment_id == "Jalama 2" ~ "Feral Hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
-                        common_name == "White-tailed Jackrabbit" ~ "Coyote",
-                        common_name == "Black-tailed Jackrabbit" ~ "Coyote", # checked and all jackrabbit IDs are coyotes
-                        .default = as.character(common_name)
+                        common_name == "domestic cat" ~ "bobcat", # double checked, def a bobcat
+                        common_name == "cat family" ~ "bobcat", 
+                        common_name == "eurasian lynx" ~ "bobcat",
+                        common_name == "lynx species" ~ "bobcat",
+                        common_name == "domestic pig" ~ "feral pig", 
+                        common_name == "wild boar" ~ "feral pig",
+                        common_name == "sus species" ~ "feral pig",
+                        common_name == "neotoma species" ~ "rat/mouse",
+                        common_name == "martes species" ~ "weasel",
+                        common_name == "ursus species" ~ "american black bear",
+                        common_name == "nutria" ~ "rat/mouse", # for now, until we determine if that thing is actually a nutria!
+                        common_name == "western gray squirrel" ~ "california ground squirrel",
+                        common_name == "brown rat" ~ "rat/mouse",
+                        common_name == "woodrat or rat or mouse species" ~ "rat/mouse",
+                        common_name == "rodent" ~ "rat/mouse",
+                        common_name == "california mouse" ~ "rat/mouse",
+                        common_name == "house mouse" ~ "rat/mouse",
+                        common_name == "muridae family" ~ "rat/mouse",
+                        common_name == "geomyidae family" ~ "gopher",
+                        common_name == "kit fox" ~ "coyote", # def not a kit fox 
+                        common_name == "white-tailed deer" ~ "mule deer",
+                        common_name == "domestic cattle" & deployment_id == "Jalama 2" ~ "feral hog", # went and checked and computer IDd some pigs as cows. fixing for now in post, will fix later in WI [4aug23]
+                        common_name == "white-tailed jackrabbit" ~ "coyote", # based on pics these are always yotes
+                        common_name == "black-tailed jackrabbit" ~ "coyote", # checked and all jackrabbit IDs are coyotes
+                        common_name == "mammal" ~ "unidentified mammal",
+                        common_name == "carnivorous mammal" ~ "unidentified mammal",
+                        common_name == "human-camera trapper" ~ "human",
+                        common_name == "human-pedestrian" ~ "human",
+                        common_name == "human - biker" ~ "human",
+                        TRUE ~ as.character(common_name)
                         )
          ) %>% 
-  
-  # take out non-wildlife
-  filter(common_name != "domestic cattle",
-         common_name != "human",
-         common_name != "human-camera trapper",
-         common_name != "human-pedestrian",
-         common_name != "domestic dog"
-         )
+# need to remove domestics, marine mammals, sheep, mouflon?? and other weird IDs KEEP HUMANS, WILL REMOVE LATER
+  filter(common_name != "mouflon", 
+         common_name != "domestic sheep",
+         common_name != "domestic cattle",
+         common_name != "domestic donkey",
+         common_name != "equus species",
+         common_name != "puma", # at this moment, this is not a puma, it's a dog
+         common_name != "domestic cow",
+         common_name != "domestic horse",
+         common_name != "californian sea lion",
+         common_name != "harbor seal",
+         common_name != "perissodactyla order",
+         common_name != "bovidae family"
+#         common_name != "domestic dog",
+#         common_name != "human",
+#         common_name != "human - camera trapper",
+#         common_name != "human - biker",
+#         common_name != "human",
+#         common_name != "human-camera trapper",
+#         common_name != "human-pedestrian",
+         ) 
 
+spp <- unique(mammals$common_name)
+spp <- unique(mammals$common_name2)
 
 ```
 
-## Fix Messed Up Dates in Dataset
+#### Fix Messed Up Dates in Dataset
 ```{r fixing dates}
 
 # we will first pull out just the incorrect dates, which are luckily all before 2020
 fix_dates <- mammals %>% 
     ## make the dates nice
   mutate(year = year(timestamp)) %>% 
-  filter(year<2021)
+  filter(year == 2017 | 
+           year == 2018 | 
+           year == 2020 | 
+           year == 2021 |
+           deployment_id == "boat_16oct22" |
+           deployment_id == "boat_17apr22" |
+           deployment_id == "boat_17sep22" |
+           deployment_id == "boat_5apr22" )
+
+  #filter(year<=2021) # for now we have to make this more complicated because WI randomly changed dates of some deployments
 
 # now we need to figure out what the corrections are, and for that we will need this dataset: https://docs.google.com/spreadsheets/d/1-gLml8H2stC2Va9H42tWLylx-5f1r8m4BDMKnsBUHl8/edit?usp=sharing (downloaded csv of one tab)
 timestamp_corrections1 <- read_csv(here("data/incorrect_timestamps.csv")) 
@@ -149,20 +233,31 @@ fixed_dates <- left_join(fix_dates, timestamp_corrections, by = join_by(deployme
 
 # join the two datasets back together!
 mammals_correctdates <- mammals %>% 
-  filter(year(timestamp)>2021) # need to remove the bad dates from the original dataset
+    filter(year(timestamp) == 2022 | 
+           year(timestamp) == 2023 ) %>% 
+    filter(deployment_id != "boat_16oct22") %>% 
+    filter(deployment_id != "boat_17apr22") %>% 
+    filter(deployment_id != "boat_17sep22") %>% 
+    filter(deployment_id != "boat_5apr22" ) # need to remove the bad dates from the original dataset
+  #filter(year(timestamp)>2021) # no longer this simple
+
+#mammals_incorrectdates <- mammals %>% 
+#  filter(year(timestamp)<=2021) # just to check (right now same # rows as 'fixed dates' so that's great)
 
 ## and do some downstream cleaning like removing useless columns
 mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>% 
-  dplyr::select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects) %>% 
+  dplyr::select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects, behavior1, behavior2, prey_or_item) %>% 
   mutate(day = day(timestamp)) %>% 
   mutate(month = month(timestamp)) %>% 
   mutate(year = year(timestamp)) %>% 
-  separate(timestamp, c("date", "time"), sep = " ") 
+  mutate(date = date(timestamp)) %>% 
+  mutate(time = format(timestamp, '%T')) %>% 
+  #separate(timestamp, c("date", "time"), sep = " ") %>% this creates blanks were the time is 0:00:00
+  mutate(common_name = tolower(common_name))
 
 ```
 
-## We should add in some metadata for sorting and analysis purposes
-
+#### We should add in some metadata for sorting and analysis purposes
 ```{r add in metadata}
 
 ######################## "monthly" deployment data ######################## 
@@ -171,30 +266,32 @@ deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_
   clean_names() %>% 
   rename(sitename = camera_name, 
          maint_month = month,
-         deployment_id = filename_prefix) %>% 
+         deployment_id = filename_prefix,
+         property = location) %>% 
   
   # need to rename some file prefixes to match what is in mammals post-cleaning (ie adding underscores)
-    # ugh ugh the filenames where i forgot to put a "_"
-  mutate(filename = str_replace(filename, "pp17apr22", "pp_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "boatcam17apr22", "boat_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "pb28apr22", "pb_28apr22")) %>% 
-  mutate(filename = str_replace(filename, "gov17apr22", "gov_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "nvs28apr22", "nvs_28apr22")) %>% 
-  mutate(filename = str_replace(filename, "pl17apr22", "pl_17apr22")) %>%  
-  mutate(filename = str_replace(filename, "cove17apr22", "cove_17apr22")) %>% 
-  mutate(filename = str_replace(filename, "bc17apr22", "bc_17apr22")) %>%
-  mutate(filename = str_replace(filename, "bc28apr22", "bc_28apr22")) %>%
-  mutate(filename = str_replace(filename, "pd28apr22", "pd_28apr22")) %>% 
-  mutate(filename = str_replace(filename, "gov_12nov22", "big_12nov22")) %>%
-  mutate(filename = str_replace(filename, "gov_17sep", "big_17sep")) %>%
-  #filter(!is.na(deployment_id)) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "pp17apr22", "pp_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "boatcam17apr22", "boat_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "pb28apr22", "pb_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "gov17apr22", "gov_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "nvs28apr22", "nvs_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "pl17apr22", "pl_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "cove17apr22", "cove_17apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "bc28apr22", "bc_28apr22")) %>% 
+  mutate(deployment_id = str_replace(deployment_id, "bc17apr22", "bc_17apr22")) %>%
+  mutate(deployment_id = str_replace(deployment_id, "pd28apr22", "pd_28apr22")) %>% 
+  filter(!is.na(deployment_id)) %>% # will sort out deployments that don't have an ID because I manually added these in
   
   # need to fix days active column:
   mutate(day_end = mdy_hm(day_end)) %>% 
   mutate(day_start = mdy_hm(day_start)) %>% 
-  mutate(days_active_calcd = difftime(day_end, day_start)) 
+  mutate(days_active_calcd = difftime(day_end, day_start, units = "days")) %>% 
   
-  # also need to figure out how many days active per MONTH
+  filter(exclude != "y") # also need to take out the deployments I found a reason to exclude (tipped to sky etc)
+  
+# also need to figure out how many days active per MONTH
+## need to remember WHY i did it this way when i'd already calculated it below using min(date) and max(date) by month...
+
 deployment_data <- deployment_data_original %>%   
   mutate(each_date = map2(day_start, day_end, ~seq(from = .x, to = .y, by = "day"))) %>% # creates a list of all dates between each start and end date (each row)
   unnest(each_date) %>% # expands that list to be one row per date
@@ -203,10 +300,29 @@ deployment_data <- deployment_data_original %>%
   mutate(days_per_month = n()) %>% 
 # works if i want to keep all rows i just created but i dont, i want to summarize
   distinct(deployment_id, month, .keep_all = TRUE) %>%  # lets me keep only rows that are unique for combo of deployment id and month, while keeping all other columns
-  dplyr::select(!each_date) # no longer need this
-  
+  dplyr::select(!each_date) %>%  # no longer need this
+  ungroup()
 
-#### add on human data to montly deployment data ####
+all_days_sampled <- deployment_data_original %>%   
+  mutate(each_date = map2(day_start, day_end, ~seq(from = .x, to = .y, by = "day"))) %>% # creates a list of all dates between each start and end date (each row)
+  unnest(each_date) %>% # expands that list to be one row per date
+  mutate(month = month(each_date)) 
+
+######################## add on human data to montly deployment data #########################
+
+humans_est <- read_csv(here("data/human_activity.csv")) %>%  # current best estimate of sitely, monthly human activity (made 8/3/2023)
+  mutate(month = month(dmy(date))) %>% 
+  rename(sitename = site,
+         n_human_shots = n,
+         human_seconds = seconds) %>% 
+  dplyr::select(sitename, month, n_human_shots, human_seconds)
+
+deployment_data_humans <- left_join(deployment_data, humans_est, by = join_by(sitename, month)) %>% 
+  # fill in zeros for where there "is no human activity" - apparently, must check this
+  mutate(human_seconds = case_when(is.na(human_seconds) ~ 0,
+                                   TRUE ~ as.numeric(human_seconds))) %>% 
+  ungroup() %>% 
+  mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam")))
 
 ######################## site metadata #########################
 
@@ -223,145 +339,197 @@ jalama_mtx <- cbind(jalama_loc$utm_y, jalama_loc$utm_x) # dist function requires
 # help doc example doesn't say this is necessary but oh well
 
 metadata2 <- metadata %>% 
-  mutate(dist_jalama = (distVincentyEllipsoid(cbind(utm_y, utm_x), jalama_mtx))/1000) # dist returns shortest distance in meters as default
+  mutate(dist_jalama = (distVincentyEllipsoid(cbind(utm_y, utm_x), jalama_mtx))/1000) %>% # dist returns shortest distance in meters as default
+  filter(sitename != "North Jalama") # for now, so list matches the data we're actually using
 
 ######################## combine and add metadata to mammals data #########################
 
 # this combines deployment (now we've made it monthly) records with metadata for each site
-metadata_by_deployment <- left_join(deployment_data, metadata2, by = join_by(sitename)) %>% 
-  dplyr::select(property, sitename, deployment_id, dist_jalama, imgs_on_sd, days_active_calcd, days_per_month, month, exclude, utm_x, utm_y, cam_brand, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
+metadata_by_deployment <- left_join(deployment_data_humans, metadata2, by = join_by(property, sitename)) %>% 
+  dplyr::select(property, sitename, deployment_id, dist_jalama, imgs_on_sd, days_active_calcd, days_per_month, month, exclude, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, cam_brand, n_human_shots, human_seconds) %>% 
+  filter(exclude == "n") %>% 
   filter(!is.na(deployment_id)) # filters out all the deployments that haven't been reviewed because i don't put in filename prefix if it hasn't been reviewed on WI
 
 # cross checking that all deployments in the metadata are present in the mammals df and vice versa
 deployments_from_mammalsdf <- mammals_fixed_dates %>% 
   distinct(deployment_id, month, .keep_all = TRUE)
 
-missing_deployments <- anti_join(deployments_from_mammalsdf, metadata_by_deployment, by = c("deployment_id", "month")) # good, currently only missing HROA deployments
+missing_deployments <- anti_join(deployments_from_mammalsdf, metadata_by_deployment, by = c("deployment_id", "month"))  # anti_join() return all rows from x without a match in y  ]
 
-mammals_clean <- left_join(mammals_fixed_dates, metadata_by_deployment, by = c("deployment_id", "month")) %>% 
-  rename(sitename = sitename.x) %>%  #got two of these in the join
-  dplyr::select(!sitename.y) %>% 
-  filter(!is.na(property)) # right now (23 jul 2024) this filters out HROA data because there's not metadata for those cams
+# for some reason this dataframe construction is duplicating some rows .... causing downstream issues, so we are going to use a dataframe BY MONTH instead and then match to mammals using combo of site and month
+
+metadata_by_month <- metadata_by_deployment %>% 
+  distinct(sitename, month, days_per_month, .keep_all = TRUE) %>% # only unique combinations of site, month, and days deployed because some months were split over deployments
+  # so now we need to sum days deployed when they're split across multiple deployments but in the same month:
+  group_by(property, sitename, dist_jalama, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, cam_brand, # none of these change over the course of the project
+           month, human_seconds, n_human_shots) %>% # these are how we want to sum days per month (sums across deployments)
+  summarise(trapnights = sum(days_per_month)) %>% 
+  unite(sitemonth_id, c("sitename", "month"), sep = ".", remove = FALSE) %>% 
+  ungroup() %>% 
+  mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam")))
+
+mammals_clean <- left_join(mammals_fixed_dates, metadata_by_month, by = join_by(sitename, month)) %>% 
+  #rename(sitename = sitename.x) %>%  #got two of these in the join
+  #dplyr::select(!sitename.y) %>% 
+  filter(!is.na(property)) %>%  # right now (23 jul 2024) this filters out HROA data because there's not metadata for those cams
+  filter(common_name != "human",
+         common_name != "domestic dog") # finally time to rule these out
+
+# the above SHOULD pop on monthly metadata to each observation based on its observed month and site
+
+####### TABLING BELOW FOR NOW UNTIL WI DATA IS MORE COMPLETE #######
+#humans_clean <- left_join(mammals_fixed_dates, metadata_by_month, by = join_by(sitename, month)) %>% 
+  #rename(sitename = sitename.x) %>%  #got two of these in the join
+  #dplyr::select(!sitename.y) %>% 
+  #filter(!is.na(property)) %>%
+#  filter(common_name == "human"|
+#         common_name == "domestic dog")
+
+#humans_summary <- humans_clean %>% 
+#  group_by(sitename, burst_settings, month, days_per_month) %>% 
+#  summarise(n = n()) %>% 
+#  mutate(seconds = n/burst_settings) %>% 
+#  mutate(seconds_per_trapnight = seconds/days_per_month) %>% 
+#  ungroup()
+#write_csv(humans_summary, here("data/humans_summary.csv"))
+
+# saving this for reproducibility
+#write_csv(rbind(mammals_clean, humans_clean), here("data/classifications_w_metadata_full_9aug2024.csv"))
 
 ```
 
 ## Planned Initial Analyses
-- response variable: mean animal activity (count of occurrences) across all species and across entire study (binned by month to create site-wise mean)
-- effect variables of interest: distance from Jalama, above or below Point Conception (barrier to human movement from Jalama)
-- random variables: species, month
-
-
-## First run t-test to look for differences in activity above and below PC 
-
-### Bin Data Appropriately
+- response variable: animal activity (count of occurrences) across all species and across entire study with month as random effect
+- effect variables of interest: distance from Jalama, human activity, species
+      - maybe above or below Point Conception (barrier to human movement from Jalama)
+- random variables: month
+- will need to include an offset of days active per site
+ 
+## Bin Data Appropriately
 counts by site > month (losing daily or weekly variation or variation due to species)
-```{r binning and summarizing data}
+counts by 24hr period, results in zero inflation, but that might be ok
+### By Month
+```{r binning and summarizing data by month}
 ######### make table of trap nights by deployment_name ###########
 
-# trap night is defined as every night a camera is active, so this isn't really trap nights, its "this camera was triggered nights"
-# will need to do real trap nights later with all of the deployment data - i added this in as it's own column as days_active so the below is redundant
-
-trigger_nights_site <-  mammals_clean%>% 
-  group_by(sitename) %>% 
-  summarize(trigger_nights = n_distinct(sitename, date)) # how many unique dates at each site
-
-# actual trap nights are more complicated because we had some down days between deployed date and retrieval date
-# step 1 sort by deployment
-#trapnights_deployment <- mammals_clean %>% 
-#  group_by(sitename, deployment_id) %>% 
-#  summarize(start = min(date),
-#            end = max(date),
-#            trapnights_w_photos = n_distinct(date),
-#            trapnights = difftime(max(date), min(date), units = "days")
-#            )
-
-# sum trap nights for all deployment dates
-#trapnights_site <- mammals_clean %>% 
-#  group_by(sitename) %>% 
-#  summarise(trapnights = sum(days_active))
-
-# also interested in trapnights per month for each site # did this in the deployment data 
-#trapnights_month <- mammals_clean %>% 
+# also interested in trapnights per month for each site
+#triggernights_month <- mammals_clean %>% 
 #  group_by(sitename, month) %>% 
 #  summarize(start = min(date),
 #            end = max(date),
 #            trapnights_w_photos = n_distinct(date),
-#            trapnights = difftime(max(date), min(date), units = "days")
-#            )
+#           # trapnights = difftime(max(date), min(date), units = "days") this is no longer necessary since we calc'd days_per_month 
+#            ) %>% 
+#  mutate(trapnights = ceiling(as.numeric(trapnights))) # rounding up again
 
-######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
 
-activity_site_month <- mammals_clean %>% 
-  group_by(sitename,days_active_calcd, burst_settings, utm_x, utm_y, dist_jalama, month, days_per_month) %>% 
-  summarize(total_captures = n() # count number of rows (observations) in each category
-            
-            ) %>% 
-  # need to summarize again to sum dates per month accurately
-  group_by(sitename, burst_settings, utm_x, utm_y, dist_jalama, month) %>%
-  summarize(monthly_days = sum(days_per_month),
-            monthly_captures = sum(total_captures)) %>% 
-  # had a hard time with the other columns so I'm tossing them out into a mutate:
-  mutate(adjusted_captures = monthly_captures/burst_settings) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10))
-  mutate(captures_by_trapnight = adjusted_captures/as.numeric(monthly_days)) %>% 
-  # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
-  mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
-                                      utm_y > -120.452725 ~ "below",
-                                      utm_y < -120.506037 ~ "north of Jalama")) # lon of north jalama cam
-  
-  
-########################################################################################
+######### make table of species by month ###########
+species_month <- mammals_clean %>%
+  count(month, year, common_name) %>%  # makes a summary table of # images per species per month
+# includes count of empties
+  rename(n_imgs = n) # rename n to be more informative
+
+
+######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by date and site and species ###########
+activity_site_month_sp_1 <- mammals_clean %>% 
+  ungroup()%>%
+  group_by(property,sitename, dist_jalama, month, human_seconds, trapnights, burst_settings, common_name) %>% 
+  summarize(total_captures = n()
+    #total_captures = sum(number_of_objects), #  this isn't returning the same # as counting rows because sometimes the value isn't 1!!!
+            ) %>% # had a hard time with the final columns so I'm tossing it out into a mutate:
+  mutate(activity_seconds = ceiling(total_captures/burst_settings))%>%  # adjusts # of captures by the number of images taken in a burst (8 or 10), ceiling rounds UP)
+  # need to make trapnights numeric integers in order to adjust by them
+  mutate(trapnights = case_when(trapnights == "0.000000 days" ~ 1,
+                                TRUE ~ as.numeric(trapnights))) %>% 
+  mutate(trapnights = case_when(trapnights == 0 ~ 1,
+                                TRUE ~ as.numeric(trapnights))) %>%
+  mutate(seconds_by_trapnight = activity_seconds/trapnights) %>% 
+
+  unite("sitemonth_id", sitename, month, sep = ".", remove = FALSE)
+
+######### need to add in the zeros for all spp and humans that this dataframe doesn't reflect ###########
+### easiest way to do that is to make a matrix
+
+# one for raw seconds
+activity_wide <- activity_site_month_sp_1 %>% 
+  dplyr::select(!c(total_captures, seconds_by_trapnight)) %>%  # we need to take out some columns that only go with each indiv. species
+  pivot_wider(names_from = common_name, names_prefix = "sp_", # column name, prefix with sp_ so we can act on all columns if we need to!
+              values_from = activity_seconds, 
+              values_fill = 0) %>% 
+  ungroup()
+
+# one for adjusted seconds
+activity_wide_adj <- activity_site_month_sp_1 %>% # this one lets us look at captures adjusted by effort
+  dplyr::select(!c(total_captures, activity_seconds)) %>%  # we need to take out some columns that only go with each indiv. species
+  pivot_wider(names_from = common_name, names_prefix = "sp_", # column name, prefix with sp_ so we can act on all columns if we need to!
+              values_from = seconds_by_trapnight, 
+              values_fill = 0) %>% 
+  ungroup()
+ 
+# we want to keep the above dataframes for later matrix stuff, otherwise we could just pipe in pivoting them longer again 
+activity_site_month_sp_2 <- activity_wide %>% 
+  pivot_longer(cols = 9:23,
+               names_to = "common_name",
+               names_prefix = "sp_", # this should remove the prefix I added, i think
+               values_to = "activity_seconds")
+
+activity_site_month_sp_adj <- activity_wide_adj %>% 
+  pivot_longer(cols = 9:23,
+               names_to = "common_name",
+               names_prefix = "sp_", # this should remove the prefix I added, i think
+               values_to = "seconds_by_trapnight")
+
+activity_site_month_sp <- full_join(activity_site_month_sp_2, activity_site_month_sp_adj) # will join based on all shared columns, so should only tack on the seconds by trapnight col
 ```
 
 ### Visualize Data ~ Month and Site
 ```{r plots of mean activity by month}
 
 # by month, sites averaged
-month_violin <- ggplot(activity_site_month, aes(x = as.factor(month), y = adjusted_captures)) +
+month_violin <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = activity_seconds)) +
   geom_violin()
 
 # by month, adjusted by trapnights
-month_adj_box <- ggplot(activity_site_month, aes(x = as.factor(month), y = captures_by_trapnight))+
+month_adj_box <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = seconds_by_trapnight))+
   geom_boxplot()
 
-month_adj_violin <- ggplot(activity_site_month, aes(x = as.factor(month), y = captures_by_trapnight)) +
+month_adj_violin <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = seconds_by_trapnight)) +
   geom_violin()
 
-# based on this, looks like the peak in the summer is largely a function of trapping effort (aka disappears when we adjust by # trapnights)
+# based on this, looks like the peak in the summer is slightly a function of trapping effort (aka is less pronounced when we adjust by # trapnights)
 
-activity_site_month$sitename <- factor(activity_site_month$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ S Canyon Cam", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
+activity_site_month_sp$sitename <- factor(activity_site_month_sp$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
 
 # by site, months averaged
-site_scatter <- ggplot(activity_site_month, aes(x = sitename, y = adjusted_captures)) +
+site_scatter <- ggplot(activity_site_month_sp, aes(x = sitename, y = activity_seconds)) +
   geom_point(aes(color = month))
 
-site_bar <- ggplot(activity_site_month, aes(x = sitename, y = captures_by_trapnight)) +
+site_bar <- ggplot(activity_site_month_sp, aes(x = sitename, y = seconds_by_trapnight)) +
   geom_bar(aes(fill = month), stat = "identity")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
 
 ```
 
-
-
 ### Visualize Data ~ Point Conception
 ```{r plot diffs above and below PC}
 
-pc_violin <- ggplot(activity_site_month, aes(x = point_conception, y = adjusted_captures)) +
+pc_violin <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
   geom_violin()
 
-pc_boxplot <- ggplot(activity_site_month, aes(x = point_conception, y = adjusted_captures)) +
+pc_boxplot <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
   geom_boxplot()
 
 ```
-### Run a T-Test
+#### Run a T-Test
 ```{r point conception t test}
 
-activity_site_month_ttest <- activity_site_month %>% 
+activity_site_month_ttest <- activity_site_month_sp %>% 
   filter(!point_conception == "north of Jalama")
 
-t.test(adjusted_captures ~ point_conception, data = activity_site_month_ttest)
+t.test(activity_seconds ~ point_conception, data = activity_site_month_ttest)
 
 ```
-### Full community t-test was non-sig so investigating species by species//some groups
+#### Full community t-test was non-sig so investigating species by species//some groups
 ```{r pc hypothesis with spp and groups}
 
 ######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
@@ -370,8 +538,8 @@ activity_site_month_sp <- mammals_clean %>% # first append monthly trapnights to
   group_by(sitename, month, dist_jalama, days_active, burst_settings, utm_x, utm_y, common_name) %>% 
   summarize(total_captures = n(), # count number of rows (observations) in each category
             ) %>% # had a hard time with the other columns so I'm tossing them out into a mutate:
-  mutate(adjusted_captures = ceiling(total_captures/burst_settings)) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10)), rounds them UP to integers for glms
-  mutate(captures_by_trapnight = adjusted_captures/as.numeric(days_active)) %>% 
+  mutate(activity_seconds = ceiling(total_captures/burst_settings)) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10)), rounds them UP to integers for glms
+  mutate(seconds_by_trapnight = activity_seconds/as.numeric(days_active)) %>% 
   # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
   mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
                                       utm_y > -120.452725 ~ "below",
@@ -380,49 +548,56 @@ activity_site_month_sp <- mammals_clean %>% # first append monthly trapnights to
   
 ######################################### visualize ###############################################
 
-pc_violin_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = adjusted_captures)) +
+pc_violin_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
   geom_violin()+
   facet_wrap(~common_name)
 
-pc_boxplot_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = adjusted_captures)) +
+pc_boxplot_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
   geom_boxplot()+
   facet_wrap(~common_name)
 
 ########################################### coyotes only #############################################
 coyote_activity <- activity_site_month_sp %>% 
-  filter(common_name == "coyote") %>% 
+  filter(common_name == "coyote") #%>% 
   filter(!point_conception == "north of Jalama")
 
-t.test(adjusted_captures ~ point_conception, data = coyote_activity)
+t.test(activity_seconds ~ point_conception, data = coyote_activity)
 
 
 ```
 
-## Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama
+### Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama * species * human activity + random effect of site and property
+- actually taking out species as a factor because i will model the three most active species on their own later
 
 ```{r visualize with scatter}
 
 ######### scatter plot of mammal activity by site by month ~ distance from jalama #########
 
-activity_by_dist_plot <- ggplot(activity_site_month, aes(x = dist_jalama, y = adjusted_captures)) +
-  geom_point(aes(color = month))+
+activity_by_dist_plot <- ggplot(activity_site_month_sp, aes(x = dist_jalama, y = activity_seconds)) +
+  geom_point(aes(color = common_name))+
+  geom_smooth()
+
+######### scatter plot of mammal activity by site by human activity ~ distance from jalama #########
+
+activity_by_humans_plot <- ggplot(activity_site_month_sp, aes(x = human_seconds, y = activity_seconds)) +
+  geom_point(aes(color = common_name))+
   geom_smooth()
 
 ######### scatter plot of coyote activity by site by month ~ distance from jalama #########
 
-coyote_dist_plot <- ggplot(coyote_activity, aes(x = dist_jalama, y = adjusted_captures)) + 
-  geom_point()
+#coyote_dist_plot <- ggplot(coyote_activity, aes(x = dist_jalama, y = activity_seconds)) + 
+#  geom_point()
 
 ######### check out distribution of data #########
 
-bysite <- ggplot(activity_site_month, aes(x = adjusted_captures)) +
+bysite <- ggplot(activity_site_month_sp, aes(x = activity_seconds)) +
   geom_density(aes(color = sitename, fill = sitename), alpha = 0.3) + # Note: just to show what the geom_violin shows
   theme_classic() +
   #scale_x_continuous(expand = c(0,0), limits = c(0,3e6)) +
   #scale_y_continuous(expand = c(0,0)) +
   labs(x = "Captures (adjusted by burst settings)", y = "Density")
 
-bydays_sampled <- ggplot(activity_site_month, aes(x = days_active, y = adjusted_captures)) +
+bydays_sampled <- ggplot(activity_site_month_sp, aes(x = trapnights, y = activity_seconds)) +
   geom_point() + # Note: just to show what the geom_violin shows
   theme_classic() +
   #scale_x_continuous(expand = c(0,0), limits = c(0,3e6)) +
@@ -430,56 +605,293 @@ bydays_sampled <- ggplot(activity_site_month, aes(x = days_active, y = adjusted_
   labs(y = "Captures (adjusted by burst settings)", x = "Days Active")
 
 # days active and captures don't LOOK correlated but let's check
-cor.test(~ adjusted_captures + days_active, data = activity_site_month, method=c("spearman"))
+cor.test(~ activity_seconds + trapnights, data = activity_site_month_sp, method=c("spearman"))
+
+# yup, correlated
 
 ```
 
-```{r glm activity ~ distance from jalama}
+```{r glmm activity model selection}
 
-# we're going to start with a normal glm and evaluate model fit and assumption violation
+# we know we need a mixed model because we need a random nesting effect of property and site
+# variables of interest are monthly human seconds, distance from jalama, species, and interactions between all
+# number of trapnights logged as an offset -- not sure why we log this but other papers do it
 
-distance_glm <- glm(adjusted_captures ~ dist_jalama, data = activity_site_month_sp, family = "poisson")
-summary(distance_glm)
+incomplete <- activity_site_month_sp %>% 
+  filter(!complete.cases(.)) #make sure every row has all data (no NAs)
 
-# assumptions?
-simulationOutput <- simulateResiduals(fittedModel = distance_glm, plot = T)
-testDispersion(simulationOutput)
-# definitely extremely overdispersed, let's try to refit with neg binomial (although we will liekly need a mixed model and to incorporate random variables like month)
-
-distance.nb <- glm.nb(adjusted_captures ~ dist_jalama, data = activity_site_month_sp)
-summary(distance.nb)
-
-# test assumptions
-simOutput <- simulateResiduals(fittedModel = distance.nb, plot = T)
-testDispersion(simOutput)
-# violates still, overdispersed STILL, we are probably missing some fixed effects
-
-#### adding in species as fixed effect
-
-distance_sp_glm <- glm.nb(adjusted_captures ~ dist_jalama + common_name, data = activity_site_month_sp)
-summary(distance_sp_glm)
-# adding an interaction term would be nice but we don't really have the data to support it
-
-# test assumptions
-simOutput <- simulateResiduals(fittedModel = distance_sp_glm, plot = T)
-testDispersion(simOutput)
-# still a little overdispersed
-
-# consider an offset given that each camera has different active days (so an offset of days_active)
-distance_sp_glm_off <- glm.nb(adjusted_captures ~ dist_jalama + common_name + (1|sitename) +(1|month), data = activity_site_month_sp, offset(days_active))
-#summary(distance_sp_glm)
-# adding an interaction term would be nice but we don't really have the data to support it
-
-
-# a real random effect here, in this nested design, would be SITE as the thing that is repeatedly sampled, but site = distance from jalama and is the variable we are interested in, so that's out
+# a real random effect here, in this nested design, would be SITE as the thing that is repeatedly sampled, but site = distance from jalama and is the variable we are interested in...
 # month is also nested within site, so could be a random variable, but it's the level of observation atm since we binned (summed) all occurences into monthly sums
 
-distance_sp_glmm_off <- glmmTMB(adjusted_captures ~ dist_jalama + (1|month) + (1|sitename), data = activity_site_month_sp, family = nbinom2(link = "log")) # no offset
+# many models standardize their explanatory variables... why?
 
-summary(distance_sp_glmm_off)
+glmm_null <- glmmTMB(activity_seconds ~ 1, data = activity_site_month_sp, family = nbinom2(link = "log"), 
+                         na.action = "na.fail")
+
+glmm_null_randoms <- glmmTMB(activity_seconds ~ 1 + (1|sitename) + (1|property) , 
+                             data = activity_site_month_sp, 
+                             family = nbinom2(link = "log"), 
+                         na.action = "na.fail")
+
+glmm_null_randoms1 <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                             data = activity_site_month_sp, 
+                             family = nbinom2(link = "log"), 
+                         na.action = "na.fail")
+
+glmm_null_randoms2 <- glmmTMB(activity_seconds ~ 1 + (1|property) , 
+                             data = activity_site_month_sp, 
+                             family = nbinom2(link = "log"), 
+                         na.action = "na.fail")
+
+
+glmm_1 <- glmmTMB(activity_seconds ~ dist_jalama + human_seconds 
+                          + (1|sitename) + (1|property), 
+                         data = activity_site_month_sp, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         na.action = "na.fail")
+
+glmm_2 <- glmmTMB(activity_seconds ~ dist_jalama
+                          + (1|sitename) + (1|property), 
+                         data = activity_site_month_sp, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         na.action = "na.fail")
+
+glmm_3 <- glmmTMB(activity_seconds ~ human_seconds 
+                          + (1|sitename) + (1|property), 
+                         data = activity_site_month_sp, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         na.action = "na.fail")
+
+glmm_full_off <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds #* common_name 
+                          + (1|sitename) + (1|property), 
+                         data = activity_site_month_sp, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         na.action = "na.fail") # necessary for dredge to work
+
+activity_models <- c(glmm_full_off, glmm_1, glmm_2, glmm_3, glmm_null_randoms, glmm_null_randoms1, glmm_null_randoms2)
+model_names <- c('glmm_full_off', 'glmm_1', 'glmm_2', 'glmm_3', 'glmm_null_rndms', 'glmm_null_rndms1','glmm_null_rndms2')
+#aictab(cand.set = activity_models)
+
+summary(glmm_full_off)
 #offset(activity_site_month_sp$days_active)
 
+simulationOutput <- simulateResiduals(fittedModel = glmm_full_off)
+plot(simulationOutput)
+plotResiduals(simulationOutput)
+testZeroInflation(simulationOutput)
+#testTemporalAutocorrelation(simulationOutput)
+
+### trying a zero inflated version, apparently this is how you code it in?? source:
+# https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#interpreting-residuals-and-recognizing-misspecification-problems
+
+#glmm_full_ZI <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds * common_name 
+#                          + (1|sitename) + (1|property) + offset(log10(trapnights)), 
+#                         data = activity_site_month_sp, 
+#                         family = nbinom2(link = "log"), 
+#                         ziformula = ~ dist_jalama + human_seconds + common_name,
+#                         na.action = "na.fail")
+#summary(glmm_full_ZI)
+#res<- simulateResiduals(glmm_full_ZI, plot = T)
 ```
+## Time to switch to by-species analysis
+### First we can look at which species and explanatory variables are correlated
+```{r correlation plot}
+# first we need a wide form of the data so we have the right info for every row!
+# good thing we already made one
+
+activity_corrs <- cor(select_if(activity_wide, is.numeric))  # cor and corrplot can only deal with numeric values, makes sense
+activity_corrs2 <- cor(select_if(activity_wide_adj, is.numeric)) # same thing but adjusted for effort
+
+corrplot(activity_corrs,
+         type = "upper",
+         method = "ellipse",
+         tl.col = "black",
+         tl.cex = 0.5)
+
+corrplot(activity_corrs2,
+         type = "upper",
+         method = "ellipse",
+         tl.col = "black",
+         tl.cex = 0.5)
+#large dark circles = large positive correlations
+#small light circles = small negative correlations
+
+```
+
+### Let's model coyote activity first since they're the most common
+```{r coyote glmm}
+
+# already made a yote df, need to update it tho
+coyote_activity <- activity_site_month_sp %>% 
+  filter(common_name == "coyote")
+
+coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+
+coyote_null_rndms <- glmmTMB(activity_seconds ~ 1 + (1|sitename) + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_null_rndms1 <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_null_rndms2 <- glmmTMB(activity_seconds ~ 1 + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_null <- glmmTMB(activity_seconds ~ 1, 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_add <- glmmTMB(activity_seconds ~ dist_jalama + human_seconds + (1|sitename) + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_1 <- glmmTMB(activity_seconds ~ dist_jalama + (1|sitename) + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_2 <- glmmTMB(activity_seconds ~ human_seconds + (1|sitename) + (1|property), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+
+# test assumptions on full model
+simulationOutput_yote <- simulateResiduals(fittedModel = coyote_full)
+plot(simulationOutput_yote)
+plotResiduals(simulationOutput_yote)
+testZeroInflation(simulationOutput_yote)
+
+coyote_models <- c(coyote_full, coyote_1, coyote_2, coyote_null_rndms, coyote_null_rndms1, coyote_null_rndms2)
+coyote_names <- c('coyote_full', 'coyote_1', 'coyote_2', 'coyote_null_rndms', 'coyote_null_rndms1','coyote_null_rndms2')
+summary(coyote_models)
+aictab(cand.set = coyote_models)
+#AIC(coyote_models)
+```
+### now pigs
+```{r pig glmm}
+
+# already made a yote df, need to update it tho
+pig_activity <- activity_site_month_sp %>% 
+  filter(common_name == "feral pig")
+
+pig_full <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+
+pig_null_rndms <- glmmTMB(activity_seconds ~ 1 + (1|sitename) + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_null_rndms1 <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_null_rndms2 <- glmmTMB(activity_seconds ~ 1 + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_null <- glmmTMB(activity_seconds ~ 1, 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_add <- glmmTMB(activity_seconds ~ dist_jalama + human_seconds + (1|sitename) + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_1 <- glmmTMB(activity_seconds ~ dist_jalama + (1|sitename) + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_2 <- glmmTMB(activity_seconds ~ human_seconds + (1|sitename) + (1|property), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+
+# test assumptions on full model
+simulationOutput_pig <- simulateResiduals(fittedModel = pig_full)
+plot(simulationOutput_pig)
+plotResiduals(simulationOutput_pig)
+testZeroInflation(simulationOutput_pig)
+
+pig_models <- c(pig_full, pig_null, pig_1, pig_2, pig_null_rndms, pig_null_rndms1, pig_null_rndms2)
+pig_names <- c('pig_full', 'pig_null', 'pig_1', 'pig_2', 'pig_null_rndms', 'pig_null_rndms1','pig_null_rndms2')
+
+```
+
+# graveyard
 
 ## We're going to change gears and use some ready-made packages to understand activity levels
 
