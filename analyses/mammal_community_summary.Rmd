@@ -1136,7 +1136,7 @@ PCA_plot #expects linear response of species abundance to env variables - not al
 #default dissimilarity measure is bray-curtis distance - use the one that makes most sense for your data
 
 #
-mammal_NMDS <- metaMDS(count_matrix_byeffort, k = 2, # k is the number of dimensions
+mammal_NMDS <- metaMDS(count_matrix_expanded, k = 2, # k is the number of dimensions
                        distance = "cao") # cao is robust against differing sampling effort, but i've standardized sampling effort so is this redundant? it improved MDS performance
 
 mammal_NMDS
@@ -1154,9 +1154,12 @@ stressplot(mammal_NMDS)
 
 ```{r NMDS-plot, eval=FALSE, include=FALSE}
 # exracting outputs
+metadata_exp <- activity_site_month_sp %>% 
+  filter(common_name != "unidentified mammal")
+
 nmds_df <- as_tibble(mammal_NMDS$points) %>% 
   # bind with metadata to plot
-  bind_cols(metadata2, .)
+  bind_cols(metadata_exp, .) # metadata2 if not using expanded matrix
 
 nmds_plot <- ggplot(nmds_df, aes(x = MDS1, y = MDS2, color = habitat_adjacent, shape = habitat_adjacent)) +
   geom_point(size = 3, alpha = 0.8) +

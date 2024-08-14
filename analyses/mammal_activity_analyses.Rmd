@@ -33,6 +33,7 @@ library(MuMIn)
 library(corrplot)
 library(DHARMa)
 library(AICcmodavg)
+library(ggeffects)
 
 ```
 
@@ -1139,6 +1140,197 @@ summary(richness_1)
 summary(richness_add)
 plot(allEffects(richness_1))
 plot(allEffects(richness_add))
+
+```
+### Finally we can make some pretty prediction figures
+```{r activity prediction graph}
+
+all_activity_response <- #plot( # plot function is helpful but i want ot ggplot
+  data.frame(predict_response(glmm_full_off, terms = c("dist_jalama", "human_seconds [0, 100, 200]"))) # old syntax was ggpredict, now it's predict_response, brackets indicate desired values of factor
+  #, 
+                          #facets = TRUE, 
+                          #show_data = TRUE)
+
+activity_plot <- ggplot(all_activity_response, aes (x, predicted, colour = group)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Mammal Activity (seconds)")+
+  scale_fill_discrete(name = "", 
+                      breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  scale_color_discrete(name = "",
+                       breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  #theme(legend.title = element_blank())+
+  theme_classic()
+  #geom_jitter(data = activity_site_month_sp, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/total_activity_model.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+activity_plot
+dev.off()
+
+r.squaredGLMM(glmm_full_off)
+r.squaredGLMM(glmm_2)
+
+```
+```{r coyotes prediction graph}
+
+############# ~ DISTANCE #############
+coyote_dist_response <- data.frame(predict_response(coyote_add, terms = c("dist_jalama"))) 
+
+coyote_dist_plot <- ggplot(coyote_dist_response, aes (x, predicted)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Coyote Activity (seconds)")+
+  theme_classic()
+  #geom_jitter(data = coyote_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/coyote_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+coyote_dist_plot
+dev.off()
+
+############# ~ HUMAN #############
+coyote_human_response <- data.frame(predict_response(coyote_add, terms = c("human_seconds"))) 
+
+coyote_human_plot <- ggplot(coyote_human_response, aes (x, predicted)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  xlab("Human Activity (seconds)")+
+  ylab("Predicted Coyote Activity (seconds)")+
+  theme_classic()
+  #geom_jitter(data = coyote_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/coyote_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+coyote_human_plot
+dev.off()
+
+r.squaredGLMM(coyote_add)
+r.squaredGLMM(coyote_1)
+
+```
+```{r deer prediction graph}
+
+############# ~ DISTANCE #############
+deer_dist_response <- data.frame(predict_response(deer_add, terms = c("dist_jalama"))) 
+
+deer_dist_plot <- ggplot(deer_dist_response, aes (x, predicted)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Deer Activity (seconds)")+
+  theme_classic()
+  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/deer_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+deer_dist_plot
+dev.off()
+
+############# ~ HUMAN #############
+deer_human_response <- data.frame(predict_response(deer_add, terms = c("human_seconds"))) 
+
+deer_human_plot <- ggplot(deer_human_response, aes (x, predicted)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  xlab("Human Activity (seconds)")+
+  ylab("Predicted Deer Activity (seconds)")+
+  theme_classic()
+  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/deer_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+deer_human_plot
+dev.off()
+
+r.squaredGLMM(deer_add)
+r.squaredGLMM(deer_1)
+
+```
+
+```{r pig prediction graph}
+
+############# ~ DISTANCE * HUMAN #############
+pig_response <- data.frame(predict_response(pig_full, terms = c("dist_jalama", "human_seconds"))) 
+
+pig_dist_plot <- ggplot(pig_response, aes(x, predicted, colour = group)) +
+  geom_line()+
+  #geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Pig Activity (seconds)")+
+  scale_fill_discrete(name = "", 
+                      breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  scale_color_discrete(name = "",
+                       breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  theme_classic()
+  #geom_jitter(data = pig_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+png(here("figures/pig_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+pig_dist_plot
+dev.off()
+
+r.squaredGLMM(pig_full)
+r.squaredGLMM(pig_1)
+
+```
+
+# Leaving the world of Frequentist Stats now...
+#### We need to bin the data into 1 day "surveys" so that we can run a multi-species occupancy model using spOccupancy and have multiple samples per month, also need to plug in zeros
+```{r make new dataframe with 1 day samples}
+# marisa is using a different dataset for the bayesian stuff that I made her - it includes daily human counts (although a lot fewer than our estimates suggest)
+## this is the one I made for her
+mammals_humans <- read_csv(here("data/classifications_w_humans_metadata_full_9aug2024.csv")) %>% 
+  mutate(date = mdy(date)) %>% 
+  rename(trapnights = days_per_month)
+
+all_days_sampled # will need this dataframe
+
+all_days_sampled2 <- all_days_sampled %>% 
+  mutate(date = date(each_date)) %>% # hopefully this column will let us full_join on date
+  mutate(year = year(each_date)) %>% 
+  mutate(day = day(each_date)) %>% 
+  mutate(number_of_objects = 0) %>% 
+  rename(timestamp = each_date) %>% 
+  unite("sitemonth_id", c(sitename, month), sep = ".", remove = FALSE) %>% 
+  select(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp)  %>% 
+  #mutate(check = gl(7, 1, length = length(site_sample_id))) # gl is apparently a way to generate a sequence that i'll never remember (7 integers, repeat each integer once, until end of df) don't need this anymore
+
+# still need to add in metadata to this so it's filled in correctly during the full bind, including dist, habitats, lat lon, iz type, burst settings, humans, and trapnights
+  left_join(., metadata_by_month, by = join_by(property, sitename, month, sitemonth_id)) %>% 
+  select(!c(human_seconds, n_human_shots)) # will calculate this from human data in dataframe
+
+
+mammals_occupancy_full <- mammals_humans %>% 
+  full_join(., all_days_sampled2 #, by = join_by(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp) # so many columns to bind on, but it should automatically select all the similar ones
+            ) 
+
+#write_csv(mammals_occupancy, "mammals_occupancy.csv")
+
+mammals_occupancy_byday <- mammals_occupancy_full %>% 
+  group_by(property, sitename, dist_jalama, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, # site specific grouping vars
+           month, sitemonth_id, trapnights, # month specific grouping vars
+           date, # day specific grouping vars
+           common_name # need sums by species
+           ) %>% 
+  summarise(raw_daily_counts = sum(number_of_objects)) %>% 
+  
+  # now we need to pivot to remove NA rows and insert zeroes
+  
+  pivot_wider(names_from = common_name, 
+              #names_sep = "_",
+              names_prefix = "sp_",
+              values_from = raw_daily_counts, 
+              values_fill = 0) %>% 
+  select(!sp_NA) %>% # we no longer need this columns now that all the zeros are filled in, so we should be able to pivot longer now and get a count of spp for every day sampled
+  pivot_longer(cols = starts_with("sp_"),
+               names_to = "common_name",
+               names_prefix = "sp_",
+               values_to = "raw_daily_counts") %>% 
+  mutate(binary_occupancy = case_when(raw_daily_counts > 1 ~ 1,
+                                      raw_daily_counts == 0 ~ 0)) # creates a binary column for occupancy
+
+write_csv(mammals_occupancy_byday, here("data/mammals_daily_occupancy.csv"))
 
 ```
 
