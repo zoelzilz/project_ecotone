@@ -412,82 +412,48 @@ mammals_clean <- left_join(mammals_fixed_dates, metadata_by_month, by = join_by(
 counts by site > month (losing daily or weekly variation or variation due to species)
 counts by 24hr period, results in zero inflation, but that might be ok
 ### By Month
-```{r binning and summarizing data by month}
-######### make table of trap nights by deployment_name ###########
+```{r binning and summarizing data by day}
+all_days_sampled2 <- all_days_sampled %>% 
+  mutate(date = date(each_date)) %>% # hopefully this column will let us full_join on date
+  mutate(year = year(each_date)) %>% 
+  mutate(day = day(each_date)) %>% 
+  mutate(number_of_objects = 0) %>% 
+  rename(timestamp = each_date) %>% 
+  unite("sitemonth_id", c(sitename, month), sep = ".", remove = FALSE) %>% 
+  select(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp)  %>% 
+  #mutate(check = gl(7, 1, length = length(site_sample_id))) # gl is apparently a way to generate a sequence that i'll never remember (7 integers, repeat each integer once, until end of df) don't need this anymore
 
-# also interested in trapnights per month for each site
-#triggernights_month <- mammals_clean %>% 
-#  group_by(sitename, month) %>% 
-#  summarize(start = min(date),
-#            end = max(date),
-#            trapnights_w_photos = n_distinct(date),
-#           # trapnights = difftime(max(date), min(date), units = "days") this is no longer necessary since we calc'd days_per_month 
-#            ) %>% 
-#  mutate(trapnights = ceiling(as.numeric(trapnights))) # rounding up again
-
-
-######### make table of species by month ###########
-species_month <- mammals_clean %>%
-  count(month, year, common_name) %>%  # makes a summary table of # images per species per month
-# includes count of empties
-  rename(n_imgs = n) # rename n to be more informative
+# still need to add in metadata to this so it's filled in correctly during the full bind, including dist, habitats, lat lon, iz type, burst settings, humans, and trapnights
+  left_join(., metadata_by_month, by = join_by(property, sitename, month, sitemonth_id)) %>% 
+  select(!c(human_seconds, n_human_shots)) # will calculate this from human data in dataframe
 
 
-######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by date and site and species ###########
-activity_site_month_sp_1 <- mammals_clean %>% 
-  ungroup()%>%
-  group_by(property,sitename, dist_jalama, month, human_seconds, trapnights, burst_settings, common_name) %>% 
-  summarize(total_captures = n()
-    #total_captures = sum(number_of_objects), #  this isn't returning the same # as counting rows because sometimes the value isn't 1!!!
-            ) %>% # had a hard time with the final columns so I'm tossing it out into a mutate:
-  mutate(activity_seconds = ceiling(total_captures/burst_settings))%>%  # adjusts # of captures by the number of images taken in a burst (8 or 10), ceiling rounds UP)
-  # need to make trapnights numeric integers in order to adjust by them
-  mutate(trapnights = case_when(trapnights == "0.000000 days" ~ 1,
-                                TRUE ~ as.numeric(trapnights))) %>% 
-  mutate(trapnights = case_when(trapnights == 0 ~ 1,
-                                TRUE ~ as.numeric(trapnights))) %>%
-  mutate(seconds_by_trapnight = activity_seconds/trapnights) %>% 
+mammals_full <- mammals_clean %>% 
+  full_join(., all_days_sampled2 #, by = join_by(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp) # so many columns to bind on, but it should automatically select all the similar ones
+            ) 
 
-  unite("sitemonth_id", sitename, month, sep = ".", remove = FALSE) %>% 
-  mutate(protection_rank = case_when(property == "JLDP" ~ 2, # actively managed
-                                     property == "VSFB" ~ 1, # not managed but not developed
-                                     property == "JBCP" ~ 0  # mildly developed recreational area
-                                     )) %>% 
-  relocate(protection_rank, .after = property)
-
-######### need to add in the zeros for all spp and humans that this dataframe doesn't reflect ###########
-### easiest way to do that is to make a matrix
-
-# one for raw seconds
-activity_wide <- activity_site_month_sp_1 %>% 
-  dplyr::select(!c(total_captures, seconds_by_trapnight)) %>%  # we need to take out some columns that only go with each indiv. species
-  pivot_wider(names_from = common_name, names_prefix = "sp_", # column name, prefix with sp_ so we can act on all columns if we need to!
-              values_from = activity_seconds, 
+mammals_occupancy_byday <- mammals_occupancy_full %>% 
+  group_by(property, sitename, dist_jalama, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, # site specific grouping vars
+           month, sitemonth_id, trapnights, # month specific grouping vars
+           date, # day specific grouping vars
+           common_name # need sums by species
+           ) %>% 
+  summarise(raw_daily_counts = sum(number_of_objects)) %>% 
+  
+  # now we need to pivot to remove NA rows and insert zeroes
+  
+  pivot_wider(names_from = common_name, 
+              #names_sep = "_",
+              names_prefix = "sp_",
+              values_from = raw_daily_counts, 
               values_fill = 0) %>% 
-  ungroup()
-
-# one for adjusted seconds
-activity_wide_adj <- activity_site_month_sp_1 %>% # this one lets us look at captures adjusted by effort
-  dplyr::select(!c(total_captures, activity_seconds)) %>%  # we need to take out some columns that only go with each indiv. species
-  pivot_wider(names_from = common_name, names_prefix = "sp_", # column name, prefix with sp_ so we can act on all columns if we need to!
-              values_from = seconds_by_trapnight, 
-              values_fill = 0) %>% 
-  ungroup()
- 
-# we want to keep the above dataframes for later matrix stuff, otherwise we could just pipe in pivoting them longer again 
-activity_site_month_sp_2 <- activity_wide %>% 
-  pivot_longer(cols = 10:24,
+  select(!sp_NA) %>% # we no longer need this columns now that all the zeros are filled in, so we should be able to pivot longer now and get a count of spp for every day sampled
+  pivot_longer(cols = starts_with("sp_"),
                names_to = "common_name",
-               names_prefix = "sp_", # this should remove the prefix I added, i think
-               values_to = "activity_seconds")
-
-activity_site_month_sp_adj <- activity_wide_adj %>% 
-  pivot_longer(cols = 10:24,
-               names_to = "common_name",
-               names_prefix = "sp_", # this should remove the prefix I added, i think
-               values_to = "seconds_by_trapnight")
-
-activity_site_month_sp <- full_join(activity_site_month_sp_2, activity_site_month_sp_adj) # will join based on all shared columns, so should only tack on the seconds by trapnight col
+               names_prefix = "sp_",
+               values_to = "raw_daily_counts") %>% 
+  mutate(binary_occupancy = case_when(raw_daily_counts > 1 ~ 1,
+                                      raw_daily_counts == 0 ~ 0)) # creates a binary column for occupancy
 ```
 
 ### Visualize Data ~ Month and Site
@@ -1081,21 +1047,6 @@ richness_full <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) +
                        na.action = "na.exclude"
                        ) 
 
-richness_nb <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = nbinom2(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_gaus <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "identity"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
 
 richness_null_rndms <- glmmTMB(richness ~ 1 + (1|sitename) + (1|property), 
                          data = diversity_df, 
@@ -1153,20 +1104,10 @@ richness_2 <- glmmTMB(richness ~ human_seconds + (1|sitename) + (1|property),
                        na.action = "na.exclude"
                        ) 
   
-
-# having trouble with model fit, doesn't predict the data well even though they are counts (of species)
-simulationOutput_rich <- simulateResiduals(fittedModel = richness_gaus)
-plot(simulationOutput_rich)
-plotResiduals(simulationOutput_rich)
-testZeroInflation(simulationOutput_rich)
-
 summary(richness_1)
 summary(richness_add)
-summary(richness_gaus)
 plot(allEffects(richness_1))
 plot(allEffects(richness_add))
-plot(allEffects(richness_nb))
-plot(allEffects(richness_gaus))
 
 ```
 ### Finally we can make some pretty prediction figures
@@ -1367,7 +1308,7 @@ all_spp_humans <- ggplot()+ # something is funky so i'm having to include 'mappi
 ```{r richenss response}
 
 ############# ~ DISTANCE #############
-richness_dist_response <- data.frame(predict_response(richness_gaus, terms = c("dist_jalama"))) 
+richness_dist_response <- data.frame(predict_response(richness_add, terms = c("dist_jalama"))) 
 
 richness_dist_plot <- ggplot(richness_dist_response, aes (x, predicted)) +
   geom_line()+
@@ -1400,7 +1341,6 @@ richness_human_plot <- ggplot(richness_human_response, aes (x, predicted)) +
 
 r.squaredGLMM(richness_add)
 r.squaredGLMM(richness_1)
-r.squaredGLMM(richness_gaus)
 
 ```
 

@@ -821,9 +821,9 @@ spercent_seasonal_activity_plot <- activity_site_month_sp %>%
 
 spercent_seasonal_activity_plot
 
-png(here("figures/seasonal_community_shift.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-spercent_seasonal_activity_plot
-dev.off()
+#png(here("figures/seasonal_community_shift.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#spercent_seasonal_activity_plot
+#dev.off()
 ```
 
 ### Then, standardized activity by species in space
@@ -860,9 +860,9 @@ spercent_space_activity_plot <- ggplot(spercent_space_activity, aes(x = sitename
 
 spercent_space_activity_plot
 
-png(here("figures/spatial_community_shift.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-spercent_space_activity_plot
-dev.off()
+#png(here("figures/spatial_community_shift.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#spercent_space_activity_plot
+#dev.off()
 ```
 
 ## Now we are ready to use vegan to calculate a bunch of community ecology metrics - the below taken from An Bui's vegan workshop.
@@ -944,16 +944,21 @@ sp_df$sitename <- factor(sp_df$sitename, levels = c("Boathouse Cam", "Ladrones C
 
 species_plot <- ggplot(sp_df, aes(x= sitename, y = value)) +
                        #aes(x = landtype, y = mean, fill = landtype)) +
-  geom_boxplot(aes(fill = property))+
+  geom_boxplot(aes(fill = dist_jalama))+
+  scale_fill_viridis_b()+
   theme_classic()+  
   ylab("Mean Species Richness")+
-  xlab("Sites North to South")+
+  xlab("Camera Stations, North to South")+
   theme(
         axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
         axis.text.y = element_text(size = 10),
         axis.title.y = element_text(size = 10),
         axis.title.x = element_text(size = 10))
-species_plot
+
+#png(here("figures/richness_site.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#species_plot
+#dev.off()
+
 
 ```
 
@@ -1136,12 +1141,14 @@ PCA_plot #expects linear response of species abundance to env variables - not al
 #default dissimilarity measure is bray-curtis distance - use the one that makes most sense for your data
 
 #
-mammal_NMDS <- metaMDS(count_matrix_expanded, k = 2, # k is the number of dimensions
-                       distance = "cao") # cao is robust against differing sampling effort, but i've standardized sampling effort so is this redundant? it improved MDS performance
-
+mammal_NMDS <- metaMDS(count_matrix, trace = FALSE, trymax = 200)
+                       #, k = 2, # k is the number of dimensions
+                       #distance = "cao") # cao is robust against differing sampling effort, but i've standardized sampling effort so is this redundant? it improved MDS performance
 mammal_NMDS
 
-plot(mammal_NMDS) #circles are sites (communities/rows), crosses are species
+plot(mammal_NMDS, type = "n") %>%  #circles are sites (communities/rows), crosses are species
+  points("sites", cex = 0.8) %>% 
+  text("species")
   #NMDS is a mapping not a rotation - axes don't matter wrt variation, etc - it's just a framework
   #for describing dissimilarity between communities
 
@@ -1153,53 +1160,77 @@ stressplot(mammal_NMDS)
 
 
 ```{r NMDS-plot, eval=FALSE, include=FALSE}
+
+# don't know why i'm doing this
+mammals_vars_fit <- envfit(mammal_NMDS, metadata2, permutations = 999)
+mammals_sp_fit <- envfit(mammal_NMDS, count_matrix, permutations = 999)
+
 # exracting outputs
-metadata_exp <- activity_site_month_sp %>% 
-  filter(common_name != "unidentified mammal")
 
-nmds_df <- as_tibble(mammal_NMDS$points) %>% 
+# site vars
+
+site_scores <- as.data.frame(scores(mammal_NMDS, display = "sites"))
+site_scores <- cbind(site_scores, property = metadata2$property)
+site_scores <- cbind(site_scores, iz_type = metadata2$iz_type)
+
+# sp vars
+sp_scores <- as.data.frame(scores(mammals_sp_fit, display = "vectors")) # spp intrinsic values saved to df
+sp_scores <- cbind(sp_scores, species = rownames(sp_scores)) # make species names rownames? syntax is ew
+sp_scores <- cbind(sp_scores, pval = mammals_sp_fit$vectors$pvals) # pvals to select significant?? spp
+
+# environmental variables
+env_scores <- as.data.frame(scores(mammals_vars_fit, display = "vectors"))
+env_scores <- cbind(env_scores, env_vars = rownames(env_scores))
+env_scores <- cbind(env_scores, pval = mammals_vars_fit$vectors$pvals) 
+
+######## plotting! ##########
+
+mammalsNMDSplot <- ggplot(site_scores, aes(NMDS1, NMDS2)) +
+  geom_point(aes(NMDS1, NMDS2, colour = factor(property), shape = factor(iz_type)))+
+  coord_fixed()+
+  theme_classic() +
+  
+  # species vectors (usually you only add "signficant" ones but i put them all on)
+  geom_segment(sp_scores, mapping = aes( x = 0, xend = NMDS1, y = 0, yend = NMDS2), 
+               arrow = arrow(length = unit(0.25, "cm")),
+               colour = "grey10",
+               lwd = 0.3) +
+  geom_text_repel(sp_scores, mapping = aes(x=NMDS1, y=NMDS2, label = species))
+
+######## graveyard ##########
+#metadata_exp <- activity_site_month_sp %>% 
+#  filter(common_name != "unidentified mammal")
+
+#nmds_df <- as_tibble(mammal_NMDS$points) %>% 
   # bind with metadata to plot
-  bind_cols(metadata_exp, .) # metadata2 if not using expanded matrix
+#  bind_cols(metadata2, .) # metadata2 if not using expanded matrix
 
-nmds_plot <- ggplot(nmds_df, aes(x = MDS1, y = MDS2, color = habitat_adjacent, shape = habitat_adjacent)) +
-  geom_point(size = 3, alpha = 0.8) +
-  stat_ellipse()
-nmds_plot
+#nmds_plot <- ggplot(nmds_df, aes(x = MDS1, y = MDS2, color = property, shape = property)) +
+#  geom_point(size = 3, alpha = 0.8) +
+#  stat_ellipse()
+#nmds_plot
 #all 3 habitats have different habitat structures but lots of overlap...
 # ?betadisper should always be used to check assumptions of nmds (?)
 ```
-
-
-
-
-
-```{r subsampled-NMDS, eval=FALSE, include=FALSE}
-##### Things to consider about stress
-sub <- birds[sample(nrow(birds), 20), ]
-subNMDS <- metaMDS(sub)
-stressplot(subNMDS) #this subsample brings the stress level down to something that would be acceptable for this ordination
-```
-
-
-
-```{r bird-CCA, eval=FALSE, include=FALSE}
+```{r mammal CCA}
 ### How is community structure related to specific environmental variables?
 
 # Canonical correspondence analysis
 # only shows variation in communities based on environmental variables
 # like a hypothesis test for what you think is most likely to contribute to variation - don't just throw all the variables in
 # good place to try several models and do model selection?
-birdCCA <- cca(birds ~ canopy_height + stems_ha + big_stem_bas, data = env)
-birdCCA
+mammalCCA <- cca(count_matrix ~ dist_jalama + iz_type + property, data = metadata2)
+mammalCCA
 
 #again, measure of inertia (amt of variation in community composition)
 #compare constrained and unconstrained inertia
 
-```
 
-```{r bird-CCA-plot, eval=FALSE, include=FALSE}
-ccaplot <- plot(birdCCA)
+plot(mammalCCA)
 #this plot reads similar to PCA - x, y axes are the two components that describe most variation and arrows describe how communities might separate along env variables
+
+# we can run a CCAanova to see which constraints are significant
+anova(mammalCCA)
 
 # scaling factor is taken from structure of plot str(ccaplot) $biplot
 ccavectors <- as.data.frame(ccaplot$biplot * 7.69) #scaling factor will change based on the size of your R window / plot output
@@ -1223,6 +1254,20 @@ cca_plot
 #direction of the arrows indicates correlation between variables
 #location of sites/species related to arrows is more important now: more stems/ha in dry sites, taller canopies in riparian sites
 ```
+
+
+
+
+```{r subsampled-NMDS, eval=FALSE, include=FALSE}
+##### Things to consider about stress
+sub <- birds[sample(nrow(birds), 20), ]
+subNMDS <- metaMDS(sub)
+stressplot(subNMDS) #this subsample brings the stress level down to something that would be acceptable for this ordination
+```
+
+
+
+
 
 ```{r graveyard, eval=FALSE, include=FALSE}
 # graveyard #
