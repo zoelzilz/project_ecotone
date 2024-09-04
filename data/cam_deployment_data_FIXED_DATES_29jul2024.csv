@@ -1,10 +1,10 @@
 ﻿location,filename_prefix,camera name,alternate_name,maint_date,month,position,battery,img_delay_sec,burst,imgs_captured,imgs_on_sd,day_start,day_end,days_active,maint_staff,action items,field notes,footage reviewed?,review notes,imgs on zooniverse?,imgs on WI?,human imgs on WI,imgs backed up x2,on _box,other_notes,exclude
-JLDP,big_12nov22,Big Cojo Cam,Govies,12-Nov-22,Nov,tilted,100%,,,1200,1232,10/16/22 13:27,11/12/22 14:28,27,ME A F LW,fix tilt,"left in, new card full?",yes,"11/8 camera tilted; oh lord maddie made it way worse 11/12, human images have gov_ prefix",,yes,,yes but not renamed,,,n
+JLDP,big_12nov22,Big Cojo Cam,Govies,12-Nov-22,Nov,tilted,100%,,,1200,1232,10/16/22 13:27,11/12/22 14:28,27,ME A F LW,fix tilt,"left in, new card full?",yes,"11/8 camera tilted; oh lord maddie made it way worse 11/12, human images have gov_ prefix",,yes,,yes but not renamed,,images after tilt already excluded I assume?,n
 JLDP,big_16oct22,Big Cojo Cam,Govies,16-Oct-22,Oct,same as previous,100%,60,8,648,649,9/17/22 9:49,10/16/22 13:25,29,MC A M,,"left SD card in, new card full?",yes,but there is a card for this month w pics starting 9/17,,yes,,,,,n
 JLDP,big_17sep22,Big Cojo Cam,Govies,17-Sep-22,Sep,same as previous,100%,,8,1484,1384,8/20/22 12:03,9/17/22 9:46,28,ME MH,,,yes,file prefix is gov on google drive but big on WI and XHD. also files are in summer 2022 folder,,TWICE,,,,,n
 JLDP,big_18jun22,Big Cojo Cam,Govies,18-Jun-22,June,very tilted,,,8,,22186,5/14/22 18:39,6/18/22 8:06,35,MC ME,,M&M didnt take notes,yes,,,yes,,yes,,,n
 JLDP,big_20aug22,Big Cojo Cam,Govies,20-Aug-22,Aug,same as previous,100%,,8,1896,1898,7/30/22 8:08,8/20/22 12:01,21,ZZ MM,"check new position, consider adding lock",,yes,"file naming error put a random chunk of photos at the end, shouldnt be a problem tho",,yes,,yes names not changed,,some photos in this deployment should be put in the other big cojo deployment of small mammals and birds only,n
-JLDP,big_30jul22,Big Cojo Cam,Govies,30-Jul-22,Jul,moved - slightly different adjacent log,,,8,,7992,6/18/22 8:18,7/30/22 8:06,42,MM,,"Big coho: 7992 pictures, 100%",yes,vegetation in front of camera precluded pictures (at night) of anything but small mammals; divided into two deployments on WI,,yes,,yes,,,n
+JLDP,big_30jul22,Big Cojo Cam,Govies,30-Jul-22,Jul,moved - slightly different adjacent log,,,8,,7992,6/18/22 8:18,7/30/22 8:06,42,MM,,"Big coho: 7992 pictures, 100%",yes,vegetation in front of camera precluded pictures (at night) of anything but small mammals; divided into two deployments on WI,,yes,,yes,,I'm hoping this fixed itself exclusion wise,n
 JLDP,gov_14may22,Big Cojo Cam,Govies,14-May-22,May,same as previous,,,8,,15376,4/28/22 9:21,5/14/22 13:12,16,ZZ SC,,triggered by vegetation,yes,,yes,yes,,yes,,,n
 JLDP,gov_17apr22,Big Cojo Cam,Govies,17-Apr-22,April,adjusted from last time - taken off signpost,,30,8,,816,4/5/22 0:00,4/17/22 0:00,12,ZZ,,"blocked by vegetation most of the time, esp at night",yes,filenames missing the _ after gov,,yes,,,,,n
 JLDP,,Big Cojo Cam,Govies,6-Jan-23,Jan,tilted at sky,,,,,,,,0,,,,,,,na,,,,,y
@@ -19,7 +19,7 @@ JLDP,bc_12nov22,Black Canyon Cam,,12-Nov-22,Nov,same as previous,73%,,,11696,116
 JLDP,bc_14may22,Black Canyon Cam,,14-May-22,May,changed position,,,8,,7232,4/28/22 9:47,5/14/22 10:23,16,ZZ SC,,Changed position of black creek cam to hopefully do better:,yes,"order is scrambled (second half date wise is first filename wise, starts at #4329)",,yes,,yes,,,n
 JLDP,bc_16oct22,Black Canyon Cam,,16-Oct-22,Oct,SAme as previous,,60,8,,776,10/1/22 10:31,10/16/22 11:58,15,MC,,none,yes,,,yes,,yes but not renamed,,,n
 JLDP,bc_17sep22,Black Canyon Cam,,18-Sep-22,Sep,just placed - same as previous but wobbly,?,,8,?,6192,8/20/22 15:53,10/1/22 10:30,42,MC,fix wobble,could not open on 9/17,yes,,,yes,,yes but not renamed,,,n
-JLDP,bc_18jun22,Black Canyon Cam,,18-Jun-22,June,pointed at sky,,60,8,,10256,5/14/22 10:26,6/14/22 18:55,31.35347222,ZZ MC ME,,"pointed at sky :(, unlocked, 100% batt, 10k images, delay at 1 min, fresh coyote and bobcat prints everywhere",yes,9801 photos before camera tilted up; actual photos ended 6/18/2022 9:09,,yes,,,,,n
+JLDP,bc_18jun22,Black Canyon Cam,,18-Jun-22,June,pointed at sky,,60,8,,10256,5/14/22 10:26,6/14/22 18:55,31.35347222,ZZ MC ME,,"pointed at sky :(, unlocked, 100% batt, 10k images, delay at 1 min, fresh coyote and bobcat prints everywhere",yes,9801 photos before camera tilted up; actual photos ended 6/18/2022 9:09,,yes,,,,images after tilt already excluded I assume?,n
 JLDP,bc_5apr22,Black Canyon Cam,,5-Apr-22,April,placed,,300,8,,984,3/13/22 0:00,4/5/22 0:00,23,ZZ,,,yes,,,yes - accidentally uploaded all including blanks,,,,,n
 JLDP,bc17apr22,Black Canyon Cam,,17-Apr-22,April,moved to another log to face ocean more,,300,8,,4176,4/5/22 0:00,4/17/22 0:00,12,ZZ,,,yes,missing _,,yes,,,,,n
 JLDP,bc28apr22,Black Canyon Cam,,28-Apr-22,April,same as previous,,300,8,,1832,4/17/22 0:00,4/28/22 0:00,11,ZZ,,,yes,missing _,,yes,,,,,n
@@ -53,7 +53,7 @@ JLDP,,Boneyard Cam,,1-Oct-22,Sep,same as previous,100%,,8,,464,9/7/22 12:37,10/1
 JBCP,coj_20jul22,Cojalama Cam,,20-Jul-22,June (late),same as previous,65%,,10,5030,5030,5/31/22 15:21,7/20/22 9:15,50,ZZ MM,,"Cojalama: 6000, 60%",yes,,,yes,,yes,,,n
 JBCP,coja_17sep22,Cojalama Cam,,17-Sep-22,Sep,same as previous,100%,,10,309,309,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,,,yes,,,,,n
 JBCP,,Cojalama Cam,,forgot?,Jul,forgot?,,,10,,,,,,ZZ,,,?,,,,,,,,y
-JBCP,,Cojalama Cam,,21-Aug-22,Aug,fell but was fixed by stranger mid deployment,,,10,,1018,7/30/22 0:00,8/21/22 0:00,6,ZZ,replace dummy lock with master lock 1,,yes,"sign flapping and triggering camera, camera fell over at 7/30 2:54:19 and was fixed at 8/15 :24:12",,all people so no,,,,,n
+JBCP,,Cojalama Cam,,21-Aug-22,Aug,fell but was fixed by stranger mid deployment,,,10,,1018,7/30/22 0:00,8/21/22 0:00,6,ZZ,replace dummy lock with master lock 1,,yes,"sign flapping and triggering camera, camera fell over at 7/30 2:54:19 and was fixed at 8/15 :24:12",,all people so no,,,,images after fall already excluded I assume?,n
 JBCP,,Cojalama Cam,,SD CARD NOT COLLECTED,Oct,same as previous,84%,,,30,NA,NA,NA,NA,MC A M,,"""jalama cam 2""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
 JBCP,,Cojalama Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
 JBCP,,Cojalama Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
@@ -72,7 +72,7 @@ JBCP,cog_30jul22,Cojo Gate Cam,,30-Jul-22,Jul,fallen again - moved,,,10,,2610,7/
 JBCP,coga_20jul22,Cojo Gate Cam,,20-Jul-22,June (late),fallen over - moved to new location,99%,,10,810,810,5/31/22 15:36,7/16/22 14:56,46,ZZ MM,,screen black on 7/16 @ 2:56pm; picked up by me 7/20/2022 9:25:00,yes,,,yes,,yes,,,n
 JBCP,coga_26aug22,Cojo Gate Cam,,26-Aug-22,Aug,turned to face ocean by stranger,,,10,,660,7/30/22 0:00,8/26/22 0:00,20,ZZ,replace dummy lock with master lock 1,,yes,someone turned camera to face ocean 8/19 11:42,,yes,,,,Movd:,n
 JBCP,coga_17sep22,Cojo Gate Cam,,17-Sep-22,Sep,same as previous,100%,,10,2760,2760,8/26/22 0:00,9/17/22 0:00,22,EW MC,,,yes,marked animals w purple,,yes,,,,,n
-JBCP,,Cojo Gate Cam,,SD CARD NOT COLLECTED,Oct,same as previous,91%,,,453,NA,NA,NA,NA,MC A M,,"""jalama cam 3""",NA,SD CARD NOT COLLECTED,,NA,,,,,n
+JBCP,,Cojo Gate Cam,,SD CARD NOT COLLECTED,Oct,same as previous,91%,,,453,NA,NA,NA,NA,MC A M,,"""jalama cam 3""",NA,SD CARD NOT COLLECTED,,NA,,,,,y
 JBCP,,Cojo Gate Cam,,12-Nov-22,Nov,same as previous,,60,10,,NA,NA,NA,NA,ME A F LW,,i believe new sd cards werent working so sd cards weren't collected,NA,,,,,,,,n
 JBCP,,Cojo Gate Cam,,not visited,Dec,,,,,,,,,,,,,,,,na,,,,,n
 JBCP,,Cojo Gate Cam,,not visited,Jan,(found it later),,,,,,,,,,,,,,,na,,,,,n
@@ -224,7 +224,7 @@ JLDP,,Percos Beach Cam,,7-Jan-23,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
 JLDP,,Percos Beach Cam,,,Feb,LOST,,,,,,,,,,,,,,,na,,,,,n
 JLDP,boat_17apr22,Percos Boat Cam,,17-Apr-22,April,changed angle to point southeast,,30,8,,14952,4/5/22 0:00,4/17/22 0:00,12,ZZ,,,yes,,,yes,,,,,n
 JLDP,boat_17sep22,Percos Boat Cam,,17-Sep-22,Sep,same as previous,80%,,8,17541,17551,8/20/22 10:55,9/17/22 0:00,28,ME MH,,,yes,marked people with yellow and JLD with blue,,yes,,yes but not renamed,,,n
-JLDP,boat_18jun22,Percos Boat Cam,,18-Jun-22,June,pointed downwards,,,8,,1616,5/17/22 23:00,6/18/22 10:53,32,ZZ MC ME,,"water pushed boatcam under boat, pointed at ground, 5/17 @11pm - lots of footage of mice; ""Boat cam was fucked again so we moved it""",yes,,,yes,,yes,,,n
+JLDP,boat_18jun22,Percos Boat Cam,,18-Jun-22,June,pointed downwards,,,8,,1616,5/17/22 23:00,6/18/22 10:53,32,ZZ MC ME,,"water pushed boatcam under boat, pointed at ground, 5/17 @11pm - lots of footage of mice; ""Boat cam was fucked again so we moved it""",yes,,,yes,,yes,,,y
 JLDP,boat_5apr22,Percos Boat Cam,,5-Apr-22,April,pointed at ocean,dead i guess? or sd full,30,8,,30000,3/13/22 0:00,3/20/22 1:43,7.071527778,ZZ,,triggered by ocean,yes,,,yes,,yes,18-Jul-24,,n
 JLDP,boat_14may22,Percos Boat Cam,,14-May-22,May,same as previous,,,8,,11056,4/28/22 10:58,5/3/22 10:59,5,ZZ SC,,someone turned off camera at 11:00am 5/3/22,yes,,,yes,,,,,n
 JLDP,,Percos Boat Cam,,18-Jun-22,June,same as previous,,,8,,21897,5/14/22 11:57,5/17/22 23:00,3,ZZ MC ME,,"water pushed boatcam under boat, pointed at ground, 5/17 @11pm - lots of footage of mice",yes,,,yes,,,,,n
@@ -257,7 +257,7 @@ JLDP,pl_14may22,Percos Log Cam,,14-May-22,May,same as previous,,600,8,,11496,4/1
 JLDP,pl_18jun22,Percos Log Cam,,18-Jun-22,June,same as previous,,60,8,,5568,5/14/22 12:15,6/18/22 11:38,35,ZZ MC ME,,"battery 100%, delay 10 min, changed to 1 min, 1500ish photos, full of earwigs",yes,,,yes,,,,,n
 JLDP,pl_30jul22,Percos Log Cam,,30-Jul-22,Jul,same as previous,,,8,,29392,6/18/22 11:45,7/30/22 11:00,42,MM,,"Percos log: 19000, 100%",yes,,,yes,,yes (two drives),,,n
 JLDP,pl_5apr22,Percos Log Cam,,5-Apr-22,April,placed - pointing directly at ocean,,30,8,,40572,3/13/22 0:00,3/17/22 0:00,4,ZZ,,grass moving triggers,yes,camera died 3/17 at 7:51pm,,yes,,,,,n
-JLDP,pl17apr22,Percos Log Cam,,17-Apr-22,April,fixed to point south but pointed at the sky,,30,8,,1848,4/5/22 0:00,4/17/22 0:00,13,ZZ,fix angle!,pointed at sky,yes,missing _ // didn't process for flying birds,,yes,,,,,n
+JLDP,pl17apr22,Percos Log Cam,,17-Apr-22,April,fixed to point south but pointed at the sky,,30,8,,1848,4/5/22 0:00,4/17/22 0:00,13,ZZ,fix angle!,pointed at sky,yes,missing _ // didn't process for flying birds,,yes,,,,,y
 JLDP,pl_17sep22,Percos Log Cam,,17-Sep-22,Sep,same as previous,100%,,8,21664,21665,8/20/22 11:40,9/17/22 13:38,28,ME MH,,,yes,"101 is only partially present, pull from ext HD // marked seal stranding and predation with blue",,yes,,yes,,,n
 JLDP,pl_16oct22,Percos Log Cam,,16-Oct-22,Oct,same as previous,100%,60,8,8168,8195,9/17/22 14:42,10/16/22 13:26,29,MC A M,should probably put a rock under one side to fix anglew,,yes,,,yes,,yes but not renamed,,,n
 JLDP,pl_12nov22,Percos Log Cam,,12-Nov-22,Nov,,0%,,,19249,19249,10/16/22 13:28,10/24/22 0:14,8,ME A F LW,,card 4 put in,yes,didn't sort after weird deletions happened - taking 1-2 photos at a time instead of bursts only towrds the end - SD card management?,,yes,,yes,,weird discrepancy between numbering system and actual count of photos PICTURES ARE MISSING??,n
@@ -282,7 +282,7 @@ VSFB,vrizn_13nov22,RIZ Cam,RIZ Cam N,13-Nov-22,Nov,same as previous,14%,60,10,52
 VSFB,,RIZ Cam,RIZ Cam N,24-Jun-22,June,same as previous,99,,10,70,70,6/22/22 0:00,6/24/22 10:56,2,MC ME LW,upside down - need to adjust position next time,,yes,sd issues i think ,,no - no animals,,no,,,n
 VSFB,,RIZ Cam,RIZ Cam N,31-Jul-22,Jul,same as previous,,,10,,650,6/24/22 10:58,7/31/22 12:39,37,MM,,"Riz north: ???, 100%; changed batteries",yes,,,yes,,yes (two drives),,,n
 VSFB,rizn_15oct22,RIZ Cam,RIZ Cam N,15-Oct-22,Oct,same as previous,0%,60,10,562,562,9/7/22 15:45,10/15/22 13:34,38,MC A A M,,,yes,,,yes,,yes but not renamed,,,n
-VSFB,,RIZ Cam,RIZ Cam N,21-Aug-22,Aug,same as previous,,,10,,471,7/31/22 12:43,8/21/22 0:00,3,ZZ,upsidedown,SD CARD FORMAT ERROR - DATA LOSS,yes,off: 8/3 - 8/13 + 8/14 - 8/19; someone moved camera 8/19 12:33:32 and it.. went offline? until it was back on 8/21 when i showed up,,,,no - no animals,,19 days range but only took/saved pictures on 3,n
+VSFB,,RIZ Cam,RIZ Cam N,21-Aug-22,Aug,same as previous,,,10,,471,7/31/22 12:43,8/21/22 0:00,3,ZZ,upsidedown,SD CARD FORMAT ERROR - DATA LOSS,yes,off: 8/3 - 8/13 + 8/14 - 8/19; someone moved camera 8/19 12:33:32 and it.. went offline? until it was back on 8/21 when i showed up,,,,no - no animals,,19 days range but only took/saved pictures on 3,y
 VSFB,,RIZ Cam,RIZ Cam N,11-Dec-22,Dec,,66%,,,3% full,,,,,MH and ME,"remove weeds in front of cam (from last month, not sure if this was done)",,,filename says 2023,,,,,,,n
 VSFB,,RIZ Cam,RIZ Cam N,,Jan,LOST,,,,,,,,,,,,,,,na,,,,,n
 VSFB,,RIZ Cam,RIZ Cam N,,Feb,LOST,,,,,,,,,,,,,,,na,,,,,n

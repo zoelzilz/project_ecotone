@@ -311,14 +311,14 @@ metadata <- read_csv(here("data/site_metadata.csv")) %>% # NOT camera_metadata.c
   dplyr::select(station, utm_x, utm_y, cam_brand, property, habitat_adjacent, habitat_secondary, iz_type, burst_settings) %>% 
   rename(sitename = station)
 
-#### add in distance to Jalama (as center of human activity) using package geosphere ####
+#### add in distance to Jalama (as center of human activity) IN KILOMETERS using package geosphere ####
 
 jalama_loc <- tibble(utm_x = 34.510480, utm_y = -120.501467) 
 jalama_mtx <- cbind(jalama_loc$utm_y, jalama_loc$utm_x) # dist function requires that both distances be in matrix form, this is one way to do that apparently
 # help doc example doesn't say this is necessary but oh well
 
 metadata2 <- metadata %>% 
-  mutate(dist_jalama = (distVincentyEllipsoid(cbind(utm_y, utm_x), jalama_mtx))/1000) %>% # dist returns shortest distance in meters as default
+  mutate(dist_jalama = (distVincentyEllipsoid(cbind(utm_y, utm_x), jalama_mtx))/1000) %>% # dist returns shortest distance in meters as default, so outputting km
   filter(sitename != "North Jalama") # for now, so list matches the data we're actually using
 
 ######################## combine and add metadata to mammals data #########################
@@ -568,11 +568,17 @@ camera_activity_summary <- full_join(count_site, count_activity,  by = join_by(s
   mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))) %>%  
   arrange(sitename)
 
-pretty_summary <- kable(camera_activity_summary
-      ,col.names = c("Camera Location (N to S)", "Number of Active Trap Nights", "Total Triggers" ,  "Seconds of Mammal Activity", "Number of Human Sightings", "Number of Unique Mammal Species",  "Percent of Triggers Containing Mammals")
-      )
+options(tinytex.verbose = TRUE)
+pretty_summary <- kable(camera_activity_summary, #format = "latex"
+      ,col.names = c("Camera Location (N to S)", "Number of Active Trap Nights", "Total Triggers" ,  "Seconds of Mammal Activity", "Number of Human Sightings", "Number of Unique Mammal Species",  "Percent of Triggers Containing Mammals"),
+      booktabs = T
+      ) #%>% 
+  #kable_styling(latex_options = c("striped", "scale_down")) %>% 
+  #as_image()
 
 pretty_summary
+
+save_kable(pretty_summary, "camera_summary_table.png")
 
 ```
 ### We can also visualize effort, or how many average nights the cameras were active per month across the year of sampling
@@ -1140,6 +1146,7 @@ PCA_plot #expects linear response of species abundance to env variables - not al
 
 #default dissimilarity measure is bray-curtis distance - use the one that makes most sense for your data
 
+bray_curtis_diss <- as.matrix(vegdist(count_matrix))
 #
 mammal_NMDS <- metaMDS(count_matrix, trace = FALSE, trymax = 200)
                        #, k = 2, # k is the number of dimensions
