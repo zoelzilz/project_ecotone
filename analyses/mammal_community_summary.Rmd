@@ -237,7 +237,7 @@ mammals_correctdates <- mammals %>%
 mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>% 
   dplyr::select(sitename, deployment_id, filename, identified_by, class, order, family, genus, species, common_name, timestamp, number_of_objects, behavior1, behavior2, prey_or_item) %>% 
   mutate(day = day(timestamp)) %>% 
-  mutate(month = month(timestamp)) %>% 
+  mutate(month = month(timestamp, label = TRUE)) %>% 
   mutate(year = year(timestamp)) %>% 
   separate(timestamp, c("date", "time"), sep = " ") %>% 
   mutate(common_name = tolower(common_name))
@@ -281,7 +281,7 @@ deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_
 deployment_data <- deployment_data_original %>%   
   mutate(each_date = map2(day_start, day_end, ~seq(from = .x, to = .y, by = "day"))) %>% # creates a list of all dates between each start and end date (each row)
   unnest(each_date) %>% # expands that list to be one row per date
-  mutate(month = month(each_date)) %>%  # extracts month from the dates
+  mutate(month = month(each_date, label = TRUE)) %>%  # extracts month from the dates
   group_by(deployment_id, month) %>% 
   mutate(days_per_month = n()) %>% # counts number of active days per month, assuming full activity between start and end date
 # works if i want to keep all rows i just created but i dont, i want to summarize
@@ -291,7 +291,7 @@ deployment_data <- deployment_data_original %>%
 
 ######################## add on human data to montly deployment data #########################
 humans_est <- read_csv(here("data/human_activity.csv")) %>%  # current best estimate of sitely, monthly human activity (made 8/3/2023)
-  mutate(month = month(dmy(date))) %>% 
+  mutate(month = month(dmy(date), label = TRUE)) %>% 
   rename(sitename = site,
          n_human_shots = n,
          human_seconds = seconds) %>% 
@@ -587,7 +587,7 @@ In December 2022 only one camera was running (or rather, they were all running b
 ```{r camera trap nights by month}
 
 effort_plot <- trapnights_month %>% 
-  mutate(month = month(month, label = TRUE)) %>% 
+  #mutate(month = month(month, label = TRUE)) %>% 
   ggplot(., aes(x = month, y = trapnights))+
   geom_boxplot() +
   theme_classic() +
@@ -602,8 +602,10 @@ effort_plot
 
 # deployment_data_humans has monthly human data
 seasonal_human_activity_plot <- deployment_data_humans %>% 
-  mutate(month = month(month, label = TRUE)) %>%  
+  #mutate(month = month(month, label = TRUE)) %>%  
   mutate(standardized_humans = human_seconds/days_per_month) %>% 
+  mutate(season = case_when(month %in% c("Apr", "May", "Jun", "Jul", "Aug", "Sep") ~ "dry",
+                            month %in% c("Oct", "Nov", "Dec", "Jan", "Feb", "Mar") ~ "wet")) %>% 
   group_by(month) %>% 
   summarise(human_seconds_all = sum(standardized_humans)) %>%
   
@@ -611,21 +613,37 @@ seasonal_human_activity_plot <- deployment_data_humans %>%
   geom_bar(stat = "identity")
 
 seasonal_mean_humans_plot <- deployment_data_humans %>% 
-  mutate(month = month(month, label = TRUE)) %>%  
+  #mutate(month = month(month, label = TRUE)) %>%  
+  mutate(season = case_when(month %in% c("Apr", "May", "Jun", "Jul", "Aug", "Sep") ~ "dry",
+                            month %in% c("Oct", "Nov", "Dec", "Jan", "Feb", "Mar") ~ "wet")) %>% 
   mutate(standardized_humans = human_seconds/days_per_month) %>% 
   
   ggplot(., aes(x = month, y = standardized_humans))+
-  scale_y_continuous(limits = c(0, 15))+
-  geom_boxplot(outlier.shape = NA) # makes crazy jalama july outlier (600 seconds!) go away haha
+  ylab("Human Activity (Seconds) Per Trapnight")+
+  xlab("Month") +
+  geom_boxplot(aes(color = season, fill = season))+
+  theme_classic()+
+  scale_y_continuous(limits = c(0, 120))+
+  #geom_boxplot(aes(color = season, fill = season), alpha = 0.1, outlier.shape = NA)+ # makes crazy jalama july outlier (600 seconds!) go away haha but also takes away all other dots
+  scale_fill_manual(name = "Season", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )+
+   scale_color_manual(name = "Season", 
+                    values = c("wet" = "dodgerblue4", "dry" = "gold3")
+                      )
 
-seasonal_mean_humans_plot
+#png(here("figures/humans_season_trunc.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
+#seasonal_mean_humans_plot
+#dev.off()
+
+
 ```
 ### Does human activity actually concentrate around Jalama? Are there other hotspots of or refuges from human activity?
 ```{r human activity in space}
 
 human_activity_inspace <- deployment_data_humans %>% 
   mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))) %>%
-  mutate(month = month(month, label = TRUE)) %>%  
+  #mutate(month = month(month, label = TRUE)) %>%  
   mutate(standardized_humans = human_seconds/days_per_month) %>% 
   
   ggplot(., aes(y = standardized_humans, x = sitename)) +
@@ -721,9 +739,9 @@ countbyspecies
 
 ### saving ####
 
-png(here("figures/species_freq.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
-countbyspecies
-dev.off()
+#png(here("figures/species_freq.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
+#countbyspecies
+#dev.off()
 
 ########## general mammal relative activity-seconds, standardized by burst and trap night ##########
 
@@ -748,9 +766,9 @@ adj_countbyspecies <- activity_site_month_sp %>%
   ylab("Activity Seconds Per Trap Night")+
   xlab("Species")
 
-png(here("figures/species_freq_bytrapnight.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
-adj_countbyspecies
-dev.off()
+#png(here("figures/species_freq_bytrapnight.png"), width = 10, height = 6, units = "in", pointsize = 12, res = 1000)
+#adj_countbyspecies
+#dev.off()
   
 ```
 
@@ -759,7 +777,7 @@ dev.off()
 
 ### first what does it look like with no standardization
 seasonal_activity_plot_NS <- activity_site_month_sp %>% 
-  mutate(month = month(month, label = TRUE)) %>%  
+  #mutate(month = month(month, label = TRUE)) %>%  
   group_by(month) %>% 
   summarise(all_mammals = sum(activity_seconds)) %>% 
   ggplot(., aes(x = month, y = all_mammals)) +
@@ -769,7 +787,7 @@ seasonal_activity_plot_NS <- activity_site_month_sp %>%
 
 
 seasonal_activity_plot <- activity_site_month_sp %>% 
-  mutate(month = month(month, label = TRUE)) %>%  
+  #mutate(month = month(month, label = TRUE)) %>%  
   group_by(month) %>% 
   summarise(all_mammals = sum(seconds_by_trapnight)) %>% 
   ggplot(., aes(x = month, y = all_mammals)) +
@@ -791,7 +809,7 @@ IDcolors <- alphabet.colors(15)
 names(IDcolors) <- NULL # necessary for ggplot to remove the names so it can assign colors correctly?
 
 spp_seasonal_activity_plot <- activity_site_month_sp %>% 
-  mutate(month = month(month, label = TRUE)) %>% 
+  #mutate(month = month(month, label = TRUE)) %>% 
   group_by(month, common_name) %>% 
   summarize(spp_activity = sum(seconds_by_trapnight)) %>% 
   ggplot(., aes(x = month, y = spp_activity)) +
@@ -812,7 +830,7 @@ Robin: you might see a coyote every day, but you'll also see a pig a day and the
 ```{r}
 
 spercent_seasonal_activity_plot <- activity_site_month_sp %>% 
-  mutate(month = month(month, label = TRUE)) %>% 
+  #mutate(month = month(month, label = TRUE)) %>% 
   group_by(month, common_name) %>% 
   summarize(spp_activity = sum(seconds_by_trapnight)) %>% 
   ggplot(., aes(x = month, y = spp_activity)) +
@@ -901,7 +919,7 @@ count_matrix <- count_species_site %>%
 #########################################################################################
 # make new metadata set so that binning by month and averaging by site is possible      #
 #########################################################################################
-count_matrix_expanded <- activity_site_month_sp %>% 
+count_matrix_expanded <- activity_site_month_sp %>% # on 9/13/24 we are using the version of this DF loaded from mammal activity analyses because it has the correct # active days, zeros, and relative abundance index (seconds per trapnight) for each month
   ungroup() %>% 
   
   # here's where we should take out "mammal" and "carnivorous mammal"
@@ -922,13 +940,15 @@ count_matrix_byeffort <- activity_site_month_sp %>%
   
   # here's where we should take out "mammal" and "carnivorous mammal"
   filter(common_name != "unidentified mammal") %>% 
-  group_by(sitename, common_name) %>% # adjusted seconds by site and species
-  summarise(seconds_by_trapnight = sum(seconds_by_trapnight)) %>% 
+  dplyr::select(sitemonth_id, common_name, seconds_by_trapnight) %>%
+  
+  #group_by(sitename, common_name) %>% # adjusted seconds by site and species
+  #summarise(seconds_by_trapnight = sum(seconds_by_trapnight)) %>% # in this version of the df, this column already exists
   
   pivot_wider(names_from = common_name, # makes 'common_name' col into col headers
               values_from = seconds_by_trapnight, # and pulls counts from n col
               values_fill = 0)  %>%  # fills in zeros to the matrix
-  column_to_rownames("sitename")  #this is important for separating site names from count data (for matrix reasons)
+  column_to_rownames("sitemonth_id")  #this is important for separating site names from count data (for matrix reasons)
   
 ```
 
@@ -937,8 +957,8 @@ count_matrix_byeffort <- activity_site_month_sp %>%
 ```{r richness}
 # we can use vegan to count species per site using specnumber() but we need to change the format to wide first
 
-sp.count <- specnumber(count_matrix_expanded)
-sp.freq <- specnumber(count_matrix_expanded, MARGIN = 2) # relative frequency of each sp. compared to others
+sp.count <- specnumber(count_matrix_byeffort)
+sp.freq <- specnumber(count_matrix_byeffort, MARGIN = 2) # relative frequency of each sp. compared to others
 
 sp_df <- sp.count %>% 
   # convert named vector to dataframe
@@ -973,7 +993,7 @@ species_plot <- ggplot(sp_df, aes(x= sitename, y = value)) +
 ```{r diversity}
 
 # vegan::diversity() will calculate shannon (default), simpson, and fisher indices
-shannondiv <- diversity(count_matrix) # going to use the original matrix becuase the bunches of zeros are throwing off the means
+shannondiv <- diversity(count_matrix_byeffort) 
 # again creates named vector 
 
 ```
@@ -1072,11 +1092,27 @@ vegan_metadata <- rownames(count_matrix_expanded) %>%  # extracts the rownames i
     enframe() %>%  # makes a vector into a df
     rename(sitemonth_id = value) %>% 
     left_join(metadata_by_month, by = join_by(sitemonth_id)) %>% 
+    mutate(season = case_when(month %in% c("Apr", "May", "Jun", "Jul", "Aug", "Sep") ~ "dry",
+                              month %in% c("Oct", "Nov", "Dec", "Jan", "Feb", "Mar") ~ "wet")) %>% 
     drop_na()
 
 # vegan::adonis() takes the same input format as stats::aov() = response ~ IV, data = group_df
 mammal_perm <- adonis2(count_matrix_expanded ~ sitename, data = vegan_metadata)
 mammal_perm
+#mammal_pairwise_site <- pairwise.adonis(count_matrix_expanded, vegan_metadata$sitename)
+
+
+mammal_perm_season <- adonis2(count_matrix_expanded ~ month, data = vegan_metadata)
+mammal_perm_season 
+
+# theres also a pairwise comparison tool
+library(devtools)
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+library(pairwiseAdonis)
+
+mammal_pairwise_season <- pairwise.adonis(count_matrix_expanded, vegan_metadata$season)
+#mammal_pairwise_month <- pairwise.adonis(count_matrix_expanded, vegan_metadata$month)
+
 ```
 Looks like they are. 
 

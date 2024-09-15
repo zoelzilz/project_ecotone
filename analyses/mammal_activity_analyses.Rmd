@@ -424,7 +424,7 @@ mammals_clean <- left_join(mammals_fixed_dates, metadata_by_month, by = join_by(
 - random variables: month
 - will need to include an offset of days active per site
  
-## Bin Data Appropriately
+# Bin Data Appropriately
 counts by site > month (losing daily or weekly variation or variation due to species)
 counts by 24hr period, results in zero inflation, but that might be ok
 counts by 7-day surveys seems like the best compromise
@@ -444,9 +444,36 @@ activity_by_day_matrix <- activity_by_day %>%
   pivot_wider(names_from = common_name, 
               values_from = captures_adj, 
               values_fill = 0, # adds zeros where appropriate
-              names_prefix = "sp_") 
+              names_prefix = "sp_")%>% 
+  # now we add on the days that the camera was active but nothing was captured
+  
+  full_join(., all_days_sampled) %>%  # if we leave out by = then it should just join on all common columns
 
-# stopping before adding in zeros because we're not really going to use this dataframe
+  # trying fill instead of join for other variables:
+  group_by(property, sitename, month) %>%  # becayse all of our covariates are measured on the site:month scale, they should be the same within these groups and we can fill from previous values
+  fill(sitemonth_id:burst_settings) %>%  # default is down which is fine i think
+  arrange(sitename, date) # so i can make sure all the dates are there
+
+# this got more complicated than i thought and we still need to bind metadata to the rows that had no animla photos (so no way to populate the date rows with metadata from previous rows)
+
+# take out any row with NAs in the metadata
+activity_day_wmeta <- activity_by_day_matrix %>% 
+  filter(!is.na(habitat_adjacent)) # gotta take these out
+
+# pulling NAs out and attempting a join again on just those
+activity_day_nometa <- activity_by_day_matrix %>% 
+  filter(is.na(habitat_adjacent)) %>% 
+  select(!sitemonth_id:burst_settings) %>%  # need ot pull these cols out so i can replace them in the bind (filling NAs on a bunch of columns like this like with coalesce is onerous)
+  left_join(., metadata_by_month)# %>% # a full 
+  
+  
+  # now that all the metadata is in place, we can mash the two sub-frames back together fill NAs in the species columns with zeros
+activity_day_matrix <- rbind(activity_day_wmeta, activity_day_nometa) %>% 
+  select(!c(deployment_id, utm_x, utm_y)) %>%  # i don't need these rn and they have NAs so bye
+  # replace zeros
+  mutate(across(starts_with("sp_"), ~replace_na(., 0)))
+
+write_csv(activity_day_matrix, here("data/activity_day_matrix.csv"))
 
 ```
 
@@ -675,7 +702,7 @@ human_season_scatter <- ggplot(activity_site_month_sp, aes(x = humans_per_trapni
 ```
 
 
-### More visualizations
+### More visualizations looking for correlations
 
 ```{r visualize with scatter}
 
@@ -716,20 +743,36 @@ bydays_sampled <- ggplot(activity_7day, aes(x = weekly_trapnights, y = seconds_p
 cor.test(~ seconds_per_trapnight + weekly_trapnights, data = activity_7day, method=c("spearman"))
 # yup, correlated
 
+
+```
+
+### couple human stats
+```{r}
+
 # we should also check for correlation between human activity and distance from jalama
 
-humans_inspace <- ggplot(activity_7day, aes(x = dist_jalama, y = human_seconds)) +
+humans_inspace_raw <- ggplot(activity_site_month_sp, aes(x = dist_jalama, y = total_human_sec)) +
   geom_point()
 
-cor.test(~ human_seconds + dist_jalama, data = activity_7day, method=c("spearman"))
-cor.test(~ human_seconds + dist_jalama, data = activity_7day, method=c("pearson"))
-cor(activity_7day$dist_jalama, activity_7day$human_seconds)
+humans_inspace_perngiht <- ggplot(activity_site_month_sp, aes(x = dist_jalama, y = humans_per_trapnight)) +
+  geom_point()
 
+
+cor.test(~ humans_per_trapnight + dist_jalama, data = activity_site_month_sp, method=c("spearman"))
+cor.test(~ humans_per_trapnight + dist_jalama, data = activity_site_month_sp, method=c("pearson"))
+cor(activity_site_month_sp$dist_jalama, activity_site_month_sp$humans_per_trapnight)
+
+# can do a kruskal wallis i think... to compare between months
+# no, KW is like anova, needs more than two samples; for pairwise, we do Dunn
+human_season_pairwise <- activity_site_month_sp %>% 
+  distinct(sitename, season, month, humans_per_trapnight) %>%  # theres a record of human activity for every species within month
+  ungroup() %>% 
+  dunn_test(humans_per_trapnight ~ season, p.adjust.method = "bonferroni")
 
 ```
 
 
-## Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama * species * human activity + random effect of site and property
+# Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama * species * human activity + random effect of site and property
 - actually taking out species as a factor because i will model the three most active species on their own later
 
 ### Trying to run models with response variable binned into month and adding in a covariate for season
@@ -779,147 +822,196 @@ glmm_null_randoms <- glmmTMB(activity_seconds ~ 1
                              offset = log10(trapnights), 
                          na.action = "na.fail")
 
+glmm_null_zi <- update(glmm_null_randoms, ziformula = ~1)
+
 ######### FULL MODELS ######### 
 
-glmm_full_inx <- glmmTMB(activity_seconds ~ season * scale(total_human_sec) * scale(dist_jalama)
+glmm_full_inx <- glmmTMB(activity_seconds ~ season * humans_per_trapnight * scale(dist_jalama)
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") 
 
-glmm_full_add <- glmmTMB(activity_seconds ~ season + total_human_sec + dist_jalama
+glmm_full_inx_zi <- update(glmm_full_inx, ziformula = ~1) # we're adding on a single zero inflation parameter to all observations (not a hurdle) - treats zero counts as a mixture of structural and sampling zeros, just giving the bernoulli formula an intercept
+
+glmm_full_add <- glmmTMB(activity_seconds ~ season + humans_per_trapnight + dist_jalama
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_seasxhum <- glmmTMB(activity_seconds ~ season * total_human_sec + dist_jalama
+glmm_full_add_zi <- update(glmm_full_add, ziformula = ~1)
+
+glmm_full_seasxhum <- glmmTMB(activity_seconds ~ season * humans_per_trapnight + dist_jalama
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_seasxdist <- glmmTMB(activity_seconds ~ season * dist_jalama + total_human_sec 
+glmm_full_seasxhum_zi <- update(glmm_full_seasxhum, ziformula = ~1)
+
+glmm_full_seasxdist <- glmmTMB(activity_seconds ~ season * dist_jalama + humans_per_trapnight 
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_distxhum <- glmmTMB(activity_seconds ~ season + dist_jalama * total_human_sec 
+glmm_full_seasxdist_zi <- update(glmm_full_seasxdist, ziformula = ~1)
+
+glmm_full_distxhum <- glmmTMB(activity_seconds ~ season + dist_jalama * humans_per_trapnight 
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
+
+glmm_full_distxhum_zi <- update(glmm_full_distxhum, ziformula = ~1) # we're adding on a single zero inflation parameter to all observations (not a hurdle) - treats zero counts as a mixture of structural and sampling zeros, just giving the bernoulli formula an intercept
+
+#glmm_full_distxhum_hurdle <- update(glmm_full_distxhum, ziformula = ~.) # we're adding on a single zero inflation parameter to all observations (not a hurdle), assumes that there is a difference between structural and sampling zeros
 
 ######### MULTIPLE COVARIATE MODELS ######### 
 
-glmm_1x <- glmmTMB(activity_seconds ~ dist_jalama * total_human_sec 
-                          + (1|sitename) + (1|property), 
+# just to see:
+#glmm_distxseas_distxhum <- glmmTMB(activity_seconds ~ (dist_jalama * total_human_sec) + (dist_jalama * season)
+#                          + (1|sitename), 
+#                         data = activity_site_month_sp, 
+#                         family = nbinom2(link = "log"), 
+#                         offset = log10(trapnights), 
+#                         na.action = "na.fail") # necessary for dredge to work
+
+glmm_1x <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") # necessary for dredge to work
 
-glmm_1a <- glmmTMB(activity_seconds ~ dist_jalama + total_human_sec 
-                          + (1|sitename) + (1|property), 
+glmm_1x_z<- update(glmm_1x, ziformula = ~1)
+
+glmm_1a <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_2x <- glmmTMB(activity_seconds ~ season * total_human_sec 
-                          + (1|sitename) + (1|property), 
+glmm_1a_z<- update(glmm_1a, ziformula = ~1)
+
+glmm_2x <- glmmTMB(activity_seconds ~ season * humans_per_trapnight 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") # necessary for dredge to work
 
-glmm_2a <- glmmTMB(activity_seconds ~ season + total_human_sec 
-                          + (1|sitename) + (1|property), 
+glmm_2x_z<- update(glmm_2x, ziformula = ~1)
+
+glmm_2a <- glmmTMB(activity_seconds ~ season + humans_per_trapnight 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
+
+glmm_2a_z<- update(glmm_2a, ziformula = ~1)
 
 glmm_3x <- glmmTMB(activity_seconds ~ season * dist_jalama 
-                          + (1|sitename) + (1|property), 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
-                         na.action = "na.fail") # necessary for dredge to work
+                         na.action = "na.fail") 
+
+glmm_3x_z<- update(glmm_3x, ziformula = ~1)
 
 glmm_3a <- glmmTMB(activity_seconds ~ season + dist_jalama 
-                          + (1|sitename) + (1|property), 
+                          + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
+
+glmm_3a_z<- update(glmm_3a, ziformula = ~1)
 
 ######### SINGLE COVARIATE MODELS ######### 
 
 glmm_season <- glmmTMB(activity_seconds ~ season 
-                          + (1|sitename) + (1|property), 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
+
+glmm_season_z<- update(glmm_season, ziformula = ~1)
 
 glmm_dist <- glmmTMB(activity_seconds ~ dist_jalama
-                          + (1|sitename) + (1|property), 
+                          + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_human <- glmmTMB(activity_seconds ~ total_human_sec 
-                          + (1|sitename) + (1|property), 
+glmm_dist_z<- update(glmm_dist, ziformula = ~1)
+
+glmm_human <- glmmTMB(activity_seconds ~ humans_per_trapnight 
+                          + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
+
+glmm_human_z<- update(glmm_human, ziformula = ~1)
 
 ####### attempting to make a model table ####### 
-bbmle::AICctab(glmm_full_inx, glmm_full_add, glmm_full_seasxhum, glmm_full_seasxdist, glmm_full_distxhum, glmm_1x, glmm_1a, glmm_2x, glmm_2a, glmm_3x, glmm_3a, glmm_dist, glmm_human, glmm_season)
+bbmle::AICtab(glmm_full_inx, glmm_full_inx_zi, 
+                                    glmm_full_add, glmm_full_add_zi,
+                                    glmm_full_seasxhum, glmm_full_seasxhum_zi,
+                                    glmm_full_seasxdist, glmm_full_seasxdist_zi,
+                                    glmm_full_distxhum, glmm_full_distxhum_zi,
+                                    glmm_1x, glmm_1a, glmm_1x_z, glmm_1a_z, 
+                                    glmm_2x, glmm_2a, glmm_2x_z, glmm_2a_z,
+                                    glmm_3x, glmm_3a,  glmm_3a_z, glmm_3x_z, 
+                                    glmm_dist, glmm_dist_z,
+                                    glmm_human, glmm_human_z,
+                                    glmm_season, glmm_season_z,
+                                    glmm_null_randoms, glmm_null_zi, logLik = TRUE,  base = TRUE)
 
-#cand.set <- c(glmm_full_inx, glmm_full_add, glmm_1x, glmm_1a, glmm_2x, glmm_2a, glmm_3x, glmm_3a, glmm_dist, glmm_human, glmm_season)
+activity_aic_table <- bbmle::AICtab( glmm_full_inx_zi, # only including zero inflated in the final table
+                                    glmm_full_add_zi,
+                                     glmm_full_seasxhum_zi,
+                                     glmm_full_seasxdist_zi,
+                                     glmm_full_distxhum_zi,
+                                     glmm_1x_z, glmm_1a_z, 
+                                     glmm_2x_z, glmm_2a_z,
+                                     glmm_3a_z, glmm_3x_z, 
+                                     glmm_dist_z,
+                                     glmm_human_z,
+                                     glmm_season_z,
+                                     glmm_null_zi, logLik = TRUE,  base = TRUE)
 
-#cand.set <- c(glmm_null_randoms, glmm_season)
-#model_names <- c('null', 'season')
+activity_aic_table <- as.tibble(activity_aic_table) %>% 
+  rownames_to_column()
 
-#model_names <- c( 'full crossed model', 'full additive model', 'dist_jalama * total_human_sec ', 'dist_jalama + total_human_sec ','season * total_human_sec', 'season + total_human_sec', 'season * dist_jalama', 'season + dist_jalama', 'dist_jalama', 'human_sec', 'season')
-
-
-#AICcmodavg::aictab(cand.set, second.ord = TRUE, nobs = NULL, sort = TRUE, c.hat = 1)
-#AIC(cand.set)
-#AICctab(cand.set, mnames = model_names, base = TRUE, weights = FALSE, logLik = TRUE, nobs = NULL)
-
-
-
-simulationOutput <- simulateResiduals(fittedModel = glmm_full_off)
+####### model diagnostics ####### 
+simulationOutput <- simulateResiduals(fittedModel = glmm_3x_z)
+#residuals(simulationOutput)
 plot(simulationOutput)
 plotResiduals(simulationOutput)
+testQuantiles(simulationOutput)
+testDispersion(simulationOutput)
 testZeroInflation(simulationOutput)
-#testTemporalAutocorrelation(simulationOutput)
+plot(x = simulationOutput$observedResponse, y = simulationOutput$fittedPredictedResponse)
+#testSpatialAutocorrelation(simulationOutput, x = activity_site_month_sp$dist_jalama, y = activity_site_month_sp$activity_seconds)
 
-### trying a zero inflated version, apparently this is how you code it in?? source:
-# https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#interpreting-residuals-and-recognizing-misspecification-problems
 
-#glmm_full_ZI <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds * common_name 
-#                          + (1|sitename) + (1|property) + offset(log10(trapnights)), 
-#                         data = activity_site_month_sp, 
-#                         family = nbinom2(link = "log"), 
-#                         ziformula = ~ dist_jalama + human_seconds + common_name,
-#                         na.action = "na.fail")
-#summary(glmm_full_ZI)
-#res<- simulateResiduals(glmm_full_ZI, plot = T)
+####### plotting and R2 of best models ####### 
 
-plot(allEffects(glmm_full_off))
-r.squaredGLMM(glmm_full_off)
+plot(allEffects(glmm_3x_z))
+r.squaredGLMM(glmm_3x_z)
 
 ```
 
@@ -1001,9 +1093,9 @@ glmm_3 <- glmmTMB(activity_seconds ~ human_seconds
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_off <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds #* common_name 
+glmm_full_off <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight #* common_name 
                           + (1|sitename) + (1|property), 
-                         data = activity_7day, 
+                         data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") # necessary for dredge to work
@@ -1091,6 +1183,8 @@ coyote_activity <- activity_site_month_sp %>%
 ggplot(coyote_activity, aes(x = activity_seconds)) +
   geom_histogram()
 
+# doesn't look liek AS many zeros so i think we can model with out zero inflation
+
 # poisson diagnostics NOT good, def a neg binom situation
 #coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds #+ (1|sitename) 
 #                     + (1|property), # swapping from glmmTMB to glmer to see if it'll let us make an AIC table
@@ -1101,8 +1195,1530 @@ ggplot(coyote_activity, aes(x = activity_seconds)) +
 #                       na.action = "na.exclude"
 #                       ) 
 
-coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds + (1|sitename) 
-                     + (1|property), # swapping from glmmTMB to glmer to see if it'll let us make an AIC table
+coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight * season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+
+coyote_null_rndms <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_add <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + season 
+                      + (1|sitename) , 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                       na.action = "na.exclude"
+                       )
+
+
+coyote_dist <- glmmTMB(activity_seconds ~ dist_jalama + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_human <- glmmTMB(activity_seconds ~ humans_per_trapnight + (1|sitename) , 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_distahum <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_full_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_humxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight * season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_humaseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_full_humxseas <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight * season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_distxseas <- glmmTMB(activity_seconds ~ dist_jalama * season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_distxseas_zi <- update(coyote_distxseas, ziformula = ~1) 
+
+coyote_distaseas <- glmmTMB(activity_seconds ~ dist_jalama + season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+coyote_full_distxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + dist_jalama * season + (1|sitename), 
+                         data = coyote_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+####### make a model table ####### 
+bbmle::AICtab(coyote_distxseas_zi, coyote_full, coyote_null_rndms, coyote_add, coyote_dist, coyote_human, coyote_distxhum, coyote_distahum, coyote_full_distxhum, coyote_humxseas, coyote_humaseas, coyote_full_humxseas, coyote_distxseas, coyote_distaseas, coyote_full_distxseas,  base = TRUE)
+
+
+####### difference between top model and zi counterpart ########
+#anova(coyote_distxseas, coyote_distxseas_zi) # giving weird results
+
+
+####### average top models ########
+coyote_avg <- model.avg(coyote_dist, coyote_distxseas, coyote_distaseas, coyote_distahum)
+
+# test assumptions on full model
+simulationOutput_yote <- simulateResiduals(fittedModel = coyote_distaseas) # best model
+plot(simulationOutput_yote)
+plotResiduals(simulationOutput_yote)
+plotQQunif(simulationOutput_yote)
+testQuantiles(simulationOutput_yote)
+testZeroInflation(simulationOutput_yote)
+
+#coyote_models <- c(coyote_full, coyote_1, coyote_2, coyote_null_rndms, coyote_null_rndms1, coyote_null_rndms2)
+#coyote_names <- c('coyote_full', 'coyote_1', 'coyote_2', 'coyote_null_rndms', 'coyote_null_rndms1','coyote_null_rndms2')
+#summary(coyote_models)
+#aictab(cand.set = coyote_models)
+#AIC(coyote_models)
+
+plot(allEffects(coyote_distxseas)) # best model
+# A negative interaction coefficient means that the effect of the combined action of two predictors is less then the sum of the individual effects.
+r.squaredGLMM(coyote_distxseas)
+```
+### now pigs
+```{r pig glmm}
+
+# already made a yote df, need to update it tho
+pig_activity <- activity_site_month_sp %>% 
+  filter(common_name == "feral pig")
+
+# how does the data look
+ggplot(pig_activity, aes(x = activity_seconds)) +
+  geom_histogram(binwidth = 1)
+
+pig_full <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight * season + (1|sitename), # not really considering third order interactions but it's interesting, should prob take these out of the table
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_full_zi <- update(pig_full, ziformula = ~1)
+
+pig_full_pois <- update(pig_full_zi, family = "poisson") # i think this overfits somehow becaue r2 is .9999 but AIC is like 2x worse
+
+
+pig_null_rndms <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_null_rndms_zi <- update(pig_null_rndms, ziformula = ~1)
+
+pig_add <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + season 
+                      + (1|sitename) , 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                       na.action = "na.exclude"
+                       )
+
+pig_add_zi <- update(pig_add, ziformula = ~1)
+
+
+pig_dist <- glmmTMB(activity_seconds ~ dist_jalama + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_dist_zi <- update(pig_dist, ziformula = ~1)
+
+pig_human <- glmmTMB(activity_seconds ~ humans_per_trapnight + (1|sitename) , 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_human_zi <- update(pig_human, ziformula = ~1)
+
+pig_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_distxhum_zi <- update(pig_distxhum, ziformula = ~1)
+
+pig_distahum <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_distahum_zi <- update(pig_distahum, ziformula = ~1)
+
+pig_full_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_full_distxhum_zi <- update(pig_full_distxhum, ziformula = ~1)
+
+pig_humxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight * season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_humxseas_zi <- update(pig_humxseas, ziformula = ~1)
+
+pig_humaseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_humaseas_zi <- update(pig_humaseas, ziformula = ~1)
+
+pig_full_humxseas <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight * season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_full_humxseas_zi <- update(pig_full_humxseas, ziformula = ~1)
+
+pig_distxseas <- glmmTMB(activity_seconds ~ dist_jalama * season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_distxseas_zi <- update(pig_distxseas, ziformula = ~1)
+
+pig_distaseas <- glmmTMB(activity_seconds ~ dist_jalama + season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_distaseas_zi <- update(pig_distaseas, ziformula = ~1)
+
+
+pig_full_distxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + dist_jalama * season + (1|sitename), 
+                         data = pig_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+pig_full_distxseas_zi <- update(pig_full_distxseas, ziformula = ~1)
+
+
+####### make a model table ####### 
+bbmle::AICtab(pig_full_zi, pig_full, pig_null_rndms, pig_add, pig_dist, pig_human, pig_distxhum, pig_distahum, pig_full_distxhum, pig_humxseas, pig_humaseas, pig_full_humxseas, pig_distxseas, pig_distaseas, pig_full_distxseas,  base = TRUE)
+
+bbmle::AICtab(pig_full_zi, pig_full,
+              pig_null_rndms, pig_null_rndms_zi, 
+              pig_add, pig_dist, pig_human, pig_add_zi, pig_dist_zi, pig_human_zi,
+              pig_distxhum, pig_distahum, pig_full_distxhum, pig_distxhum_zi, pig_distahum_zi, pig_full_distxhum_zi, 
+              pig_humxseas, pig_humaseas, pig_full_humxseas, pig_humxseas_zi, pig_humaseas_zi, pig_full_humxseas_zi, 
+              pig_distxseas, pig_distaseas, pig_full_distxseas,  pig_distxseas_zi, pig_distaseas_zi, pig_full_distxseas_zi,  
+              base = TRUE)
+
+##### hard to pick between full and full ZI
+
+anova(pig_full, pig_distxseas)
+
+####### average top models ########
+pig_avg <- model.avg(pig_dist, pig_distxseas, pig_distaseas, pig_distahum)
+
+# test assumptions on full model
+simulationOutput_pig <- simulateResiduals(fittedModel = pig_humaseas)
+plot(simulationOutput_pig)
+plotResiduals(simulationOutput_pig)
+testDispersion(simulationOutput_pig)
+
+testZeroInflation(simulationOutput_pig)
+
+plot(allEffects(pig_full_zi))
+r.squaredGLMM(pig_full_zi)
+```
+### finally for deer
+```{r deer models}
+
+# already made a yote df, need to update it tho
+deer_activity <- activity_site_month_sp %>% 
+  filter(common_name == "mule deer")
+
+# how does the data look
+ggplot(deer_activity, aes(x = activity_seconds)) +
+  geom_histogram(binwidth = 1)
+
+deer_full <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight * season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_full_zi <- update(deer_full, ziformula = ~1)
+
+
+deer_null_rndms <- glmmTMB(activity_seconds ~ 1 + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_null_rndms_zi <- update(deer_null_rndms, ziformula = ~1)
+
+deer_add <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + season 
+                      + (1|sitename) , 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                       na.action = "na.exclude"
+                       )
+deer_add_zi <- update(deer_add, ziformula = ~1)
+
+
+deer_dist <- glmmTMB(activity_seconds ~ dist_jalama + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_dist_zi <- update(deer_dist, ziformula = ~1)
+
+deer_human <- glmmTMB(activity_seconds ~ humans_per_trapnight + (1|sitename) , 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_human_zi <- update(deer_human, ziformula = ~1)
+
+
+deer_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_distxhum_zi <- update(deer_distxhum, ziformula = ~1)
+
+deer_distahum <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_distahum_zi <- update(deer_distahum, ziformula = ~1)
+
+deer_full_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight + season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_full_distxhum_zi <- update(deer_full_distxhum, ziformula = ~1)
+
+deer_humxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight * season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_humxseas_zi <- update(deer_humxseas, ziformula = ~1)
+
+deer_humaseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_humaseas_zi <- update(deer_humaseas, ziformula = ~1)
+
+
+deer_full_humxseas <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight * season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_full_humxseas_zi <- update(deer_full_humxseas, ziformula = ~1)
+
+
+deer_distxseas <- glmmTMB(activity_seconds ~ dist_jalama * season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_distxseas_zi <- update(deer_distxseas, ziformula = ~1)
+
+
+deer_distaseas <- glmmTMB(activity_seconds ~ dist_jalama + season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_distaseas_zi <- update(deer_distaseas, ziformula = ~1)
+
+
+deer_full_distxseas <- glmmTMB(activity_seconds ~ humans_per_trapnight + dist_jalama * season + (1|sitename), 
+                         data = deer_activity, 
+                         family = nbinom2(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+deer_full_distxseas_zi <- update(deer_full_distxseas, ziformula = ~1)
+
+
+####### make a model table ####### 
+bbmle::AICtab(deer_full, 
+              deer_null_rndms, 
+              deer_add, deer_dist, deer_human, 
+              deer_distxhum, deer_distahum, deer_full_distxhum,
+              deer_humxseas, deer_humaseas, deer_full_humxseas, 
+              deer_distxseas, deer_distaseas, deer_full_distxseas, base = TRUE)
+
+bbmle::AICtab(deer_full, deer_full_zi,
+              deer_null_rndms, deer_null_rndms_zi, 
+              deer_add, deer_dist, deer_human, deer_add_zi, deer_dist_zi, deer_human_zi, 
+              deer_distxhum, deer_distahum, deer_full_distxhum, deer_distxhum_zi, deer_distahum_zi, deer_full_distxhum_zi,
+              deer_humxseas, deer_humaseas, deer_full_humxseas, deer_humxseas_zi, deer_humaseas_zi, deer_full_humxseas_zi, 
+              deer_distxseas, deer_distaseas, deer_full_distxseas, deer_distxseas_zi, deer_distaseas_zi, deer_full_distxseas_zi,  base = TRUE)
+              
+####### average top models ########
+deer_avg <- model.avg(deer_dist, deer_distxseas, deer_distaseas, deer_distahum)
+
+# test assumptions on full model
+simulationOutput_deer <- simulateResiduals(fittedModel = deer_dist)
+plot(simulationOutput_deer)
+plotResiduals(simulationOutput_deer)
+testZeroInflation(simulationOutput_deer)
+
+plot(allEffects(deer_distxhum))
+r.squaredGLMM(deer_distaseas)
+
+#### is the nested (simple) model better than the complex model? ####
+# we can use lmtest::lrtest to compare the log-likelihoods using loglikelihood ratio calculations and chi2 test
+lrtest(deer_dist, deer_distxhum, deer_distahum, deer_distaseas) # all within 2 AIC
+# first three are not significantly different from each other, adding season significantly decreases performance
+
+```
+
+
+## now we look at richness/diversity with the same predictor variables
+### Getting Diversity Estimates w/ Relative Activity Index (seconds/100 days)
+```{r richness estimates}
+
+# we can use the activity_site_month_sp matrix to calculate richness
+richness_matrix <- activity_site_month_sp %>% 
+  select(sitemonth_id, common_name, seconds_by_trapnight) %>% 
+  mutate(rel_abund_index100 = ceiling(seconds_by_trapnight*100)) %>%  # i dont think shannon div handles fractions well, so we will do this to create integers
+  select(-seconds_by_trapnight) %>% 
+  pivot_wider(names_from = common_name, 
+              values_from = rel_abund_index100,
+              values_fill = 0) %>% 
+  column_to_rownames("sitemonth_id")  #this is important for separating site names from count data (for matrix reasons)
+
+
+# sp.count from vegan calculates richness
+sp.count <- specnumber(richness_matrix) # vector
+
+rich_df <- sp.count %>% 
+  enframe()%>% 
+  rename(sitemonth_id = name,
+         richness = value)
+
+# vegan::diversity() will calculate shannon (default), simpson, and fisher indices
+shannondiv <- diversity(richness_matrix, index = "shannon") # default is shannon but i want ot remember
+# again creates named vector 
+
+div_df <- shannondiv %>% 
+  enframe() %>% 
+  rename(sitemonth_id = name, 
+         shandiv = value)
+
+# attach shannon diversity it back to the dataframe
+diversity_df <- rich_df %>% 
+# join with metadata: this joins shandiv_df to site_type matching shandiv_df$name to site_type$site
+  full_join(., activity_site_month_sp, by = join_by(sitemonth_id)) %>%
+  distinct(sitename, month, richness, .keep_all = TRUE)
+
+# how does diversity data look?
+ggplot(diversity_df, aes(x = log10(richness+1))) +
+  geom_histogram()
+
+# shandiv has:
+# zero inflated gaussian, that's cool!
+# not sure that's a residual distribution that exists though... might be a zero inflated gamma?
+# it's not, because after doing some research, you can't take the log of zero and that fucks up a lot of model distributions like poisson that are designed for count data
+
+# back to richness!
+
+######## lets visualize in response to some stuff: ######## 
+
+##### richness ~ human activity ##### 
+richxhum <- ggplot(diversity_df, aes( x = humans_per_trapnight, y = richness))+
+  geom_point()
+
+richxdist <- ggplot(diversity_df, aes( x = dist_jalama, y = richness))+
+  geom_point()
+
+richxseason <- ggplot(diversity_df, aes( x = season, y = richness))+
+  geom_boxplot()+
+  geom_jitter(aes(color = humans_per_trapnight))
+
+rich_seasxhum <- ggplot(diversity_df, aes( x = humans_per_trapnight, y = richness))+
+  geom_point()+
+  facet_wrap(~season)
+
+mean(diversity_df$richness)
+sd(diversity_df$richness)
+
+
+```
+
+### Modeling Richness
+
+```{r diversity model}
+
+################# let's include effort as a random effect ###################
+# we know it's there, so we need ot allocate differences between samples to it, but we don't care to visualize it #
+
+richness_full_pois <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight * season + (1|sitename) + (1|trapnights), # this model is underdispersed and overfits zeros. (more zeros than expected)
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       ) 
+
+richness_null_rndms <- glmmTMB(richness ~ 1 + (1|sitename) + (1|trapnights),, 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       ) 
+
+richness_full_seasxhum <- glmmTMB(richness ~ dist_jalama + humans_per_trapnight * season + (1|sitename) + (1|trapnights),, 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       ) 
+
+richness_full_distxhum <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight + season + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       ) 
+
+richness_full_distxseas <- glmmTMB(richness ~ dist_jalama * season + humans_per_trapnight + (1|sitename)+ (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_full_add <- glmmTMB(richness ~ dist_jalama + season + humans_per_trapnight + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         offset = log10(trapnights)
+                       )
+
+
+richness_distxseas <- glmmTMB(richness ~ dist_jalama * season + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_distaseas <- glmmTMB(richness ~ dist_jalama + season + (1|sitename)+ (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_distxhum <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       ) 
+
+richness_distahum <- glmmTMB(richness ~ dist_jalama + humans_per_trapnight + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_humxseas <- glmmTMB(richness ~ season * humans_per_trapnight + (1|sitename)+ (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_humaseas <- glmmTMB(richness ~ season + humans_per_trapnight + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_human <- glmmTMB(richness ~ humans_per_trapnight + (1|sitename)+ (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_season <- glmmTMB(richness ~ season + (1|sitename)+ (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_distance <- glmmTMB(richness ~ dist_jalama + (1|sitename) + (1|trapnights), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+
+################# glm time ###################
+
+
+richness_full_pois <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight * season + (1|sitename), # this model is underdispersed and overfits zeros. (more zeros than expected)
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       ) 
+
+richness_null_rndms <- glmmTMB(richness ~ 1 + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights), 
+                         #na.action = "na.fail",# necessary for dredge to work
+                       na.action = "na.exclude"
+                       ) 
+
+richness_full_seasxhum <- glmmTMB(richness ~ dist_jalama + humans_per_trapnight * season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       ) 
+
+richness_full_distxhum <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight + season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       ) 
+
+richness_full_distxseas <- glmmTMB(richness ~ dist_jalama * season + humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_full_add <- glmmTMB(richness ~ dist_jalama + season + humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+
+richness_distxseas <- glmmTMB(richness ~ dist_jalama * season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_distaseas <- glmmTMB(richness ~ dist_jalama + season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_distxhum <- glmmTMB(richness ~ dist_jalama * humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       ) 
+
+richness_distahum <- glmmTMB(richness ~ dist_jalama + humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_humxseas <- glmmTMB(richness ~ season * humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_humaseas <- glmmTMB(richness ~ season + humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_human <- glmmTMB(richness ~ humans_per_trapnight + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_season <- glmmTMB(richness ~ season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_distance <- glmmTMB(richness ~ dist_jalama + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log"), 
+                         offset = log10(trapnights)
+                       )
+
+richness_distance0 <- glmmTMB(richness ~ dist_jalama + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_distxseas0 <- glmmTMB(richness ~ dist_jalama * season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+richness_distaseas0 <- glmmTMB(richness ~ dist_jalama + season + (1|sitename), 
+                         data = diversity_df, 
+                         family = compois(link = "log")
+                       )
+
+
+####### AIC table ########
+bbmle::AICtab(richness_full, richness_null_rndms, #richness_nb, #richness_full_gaus,
+              richness_full_add, richness_full_distxhum, richness_full_distxseas, richness_full_seasxhum, 
+              richness_distahum, richness_distxhum, 
+              richness_distaseas, richness_distxseas, 
+              richness_humaseas, richness_humxseas, 
+              richness_human, richness_season, richness_distance, 
+              # best three models w/o offset
+              #richness_distaseas0, richness_distance0, richness_distxseas0,
+              base = TRUE)
+
+
+# having trouble with model fit, doesn't predict the data well even though they are counts (of species)
+simulationOutput_rich <- simulateResiduals(fittedModel = richness_distaseas)
+plot(simulationOutput_rich)
+plotResiduals(simulationOutput_rich)
+testDispersion(simulationOutput_rich)
+testZeroInflation(simulationOutput_rich)
+countOnes <- function(x) sum(x == 1) # 
+testGeneric(simulationOutput_rich, summary = countOnes) # tests for 1 iflation
+performance::check_overdispersion(simulationOutput_rich)
+
+
+#summary(richness_1)
+#summary(richness_add)
+summary(richness_distance)
+summary(richness_distxseas)
+summary(richness_full_distxseas)
+
+# top 3 models
+r.squaredGLMM(richness_distance)
+r.squaredGLMM(richness_distxseas) # highest r2
+r.squaredGLMM(richness_full_distxseas) 
+
+#plot(effects::allEffects(richness_distance)) # somehow effects:: is breaking when we use a genpois distribution. something about mu gets funky
+#plot(allEffects(richness_distxseas))
+#plot(allEffects(richness_distaseas))
+#plot(allEffects(richness_gaus))
+
+fct_relevel(f)
+fct_relevel(f, "a")
+
+plot(x = predict(richness_distxseas), y = (diversity_df$richness))
+
+```
+
+
+# Finally we can make some pretty prediction figures
+```{r activity prediction graphs}
+ # going to start by mutating the raw dataframe a bit for plotting
+activity_site_month_sp_plot <- activity_site_month_sp %>% 
+    mutate(human_activity_rank = case_when(total_human_sec < 0 ~ "none",
+                                           total_human_sec > 0 & total_human_sec < 100   ~ "moderate",
+                                           total_human_sec > 100 ~ "high"))
+
+all_activity_ZI <-
+  data.frame(predict_response(glmm_3x_z, terms = c("dist_jalama [0:12]", "season")))
+
+activity_plot_ZI <- 
+  ggplot(all_activity_ZI, aes (x, predicted, colour = group)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach Campground (km)")+
+  ylab("Predicted Mammal Activity (seconds/day)")+
+  scale_fill_manual(name = "", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold"),
+                      breaks = c("wet", "dry"),
+                       labels = c("Wet Season (Oct-Mar)", "Dry Season (Apr-Sep)"))+
+  scale_color_manual(name = "",
+                     values = c("wet" = "dodgerblue1", "dry" = "gold"),
+                       breaks = c("wet", "dry"),
+                       labels = c("Wet Season (Oct-Mar)", "Dry Season (Apr-Sep)"))+
+  #theme(legend.title = element_blank())+
+  theme_classic()+
+  geom_jitter(data = activity_site_month_sp_plot, aes(x = dist_jalama, y = seconds_by_trapnight, colour = season), shape = 1) # seconds per trapnight
+  #scale_color_discrete(name = "",
+                       #breaks = c(,3,6,9),
+                       #labels = c("At Jalama Beach Campground", "3 Kilometers Away", "6 Kilometers Away", "9 Kilometers Away")
+#                       )
+
+
+
+#png(here("figures/mammal_activity_seasxdist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#activity_plot_ZI
+#dev.off()
+
+```
+
+### coyotes
+```{r coyotes prediction graph}
+
+## for fun
+dotwhisker::dwplot(coyote_distxseas) # plotting effect size + 95 ci on a dot whisker plot
+
+############# ~ DISTANCE #############
+coyote_dist_response <- data.frame(predict_response(coyote_distxseas, terms = c("dist_jalama [0:12]", "season"))) %>% 
+  rename(season = group)
+
+coyote_dist_plot <- ggplot(coyote_dist_response, aes(x, predicted, linetype = season)) +
+  geom_line(aes(colour = season))+
+  scale_color_manual(name = "", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = season), alpha = 0.2)+
+  scale_fill_manual(name = "", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold"),
+                      breaks = c("wet", "dry"),
+                       labels = c("Wet Season (Oct-Mar)", "Dry Season (Apr-Sep)"))+
+  xlab("Distance From Jalama Beach Campground (km)")+
+  ylab("Predicted Coyote Activity (seconds)")+
+  theme_classic() +
+  geom_jitter(data = coyote_activity, aes(x = dist_jalama, y = seconds_by_trapnight, color = season), shape = 1)+
+  scale_color_manual(name = "", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )+
+  # remove some legends:
+  guides(color = "none", linetype = "none")
+
+#png(here("figures/coyote_activity_inxn.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#coyote_dist_plot
+#dev.off()
+
+############# ~ SEASON #############
+coyote_season_response <- data.frame(predict_response(coyote_add, terms = c("season"))) 
+
+coyote_season_plot <- ggplot(coyote_season_response, aes(x, predicted)) +
+  geom_point( size = 4)+
+  geom_errorbar(aes(x, ymin = conf.low, ymax = conf.high))+
+  #scale_color_manual(name = "", 
+  #                  values = c("wet" = "dodgerblue1", "dry" = "gold")
+  #                    )+
+  # remove some legends:
+  #guides(color = "none")
+  xlab("Season")+
+  ylab("Predicted Coyote Activity (seconds/day)")+
+  theme_classic()+
+  geom_jitter(data = coyote_activity, aes(x = season, y = seconds_by_trapnight, color = dist_jalama), shape = 1)+
+  scale_color_continuous(type = "viridis", 
+                         name = "") # add in Distance from Jalama Beach Campground (km) in post
+
+#png(here("figures/coyote_activity_season.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#coyote_season_plot
+#dev.off()
+
+r.squaredGLMM(coyote_add)
+r.squaredGLMM(coyote_1)
+
+```
+### pigs
+```{r pig prediction graph}
+
+############# ~ DISTANCE #############
+#pig_response_dist <- data.frame(predict_response(pig_full, terms = c("dist_jalama", "total_human_sec [0, 100, 200]", "season")))
+
+#pig_dist_plot <- ggplot(pig_response_dist, aes (x, predicted, colour = group)) +
+#  geom_line()+
+#  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+#  xlab("Distance From Jalama Beach (km)")+
+#  ylab("Predicted Pig Activity (seconds)")+
+#  facet_wrap(~facet)
+#  theme_classic()
+  #geom_jitter(data = pig_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+#png(here("figures/pig_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#pig_dist_plot
+#dev.off()
+
+############# ~ HUMAN #############
+#pig_response_humans <- data.frame(predict_response(pig_full, terms = "human_seconds"))
+
+#pig_human_plot <- ggplot(pig_response_humans, aes (x, predicted)) +
+#  geom_line(colour = "#16FF32")+
+#  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#16FF32")+
+#  xlab("Human Activity (seconds)")+
+#  ylab("Predicted Pig Activity (seconds)")+
+#  theme_classic()
+  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+#png(here("figures/pig_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#pig_human_plot
+#dev.off()
+
+############# ~ DISTANCE * HUMAN #############
+# make a histogram to pick relevant levels of human activity
+human_levels <- ggplot(activity_site_month_sp, aes(x = humans_per_trapnight))+
+  geom_histogram(bins = 30)
+
+pig_response <- data.frame(predict_response(pig_full_zi, terms = c( "dist_jalama [0:12]", "season"), type = "zero_inflated"))
+
+pig_response_full <- data.frame(predict_response(pig_full_zi, terms = c( "dist_jalama [0:10]", "humans_per_trapnight [0, 20, 40]", "season"), type = "zero_inflated")) %>% 
+  rename(season = facet)
+
+
+
+
+pig_resp_humxseason <- data.frame(predict_response(pig_full_zi, terms = c("humans_per_trapnight[0:50]", "season"), type = "zero_inflated")) %>% 
+  rename(season = group)
+
+pig_humxseason_plot <- ggplot(pig_resp_humxseason, aes(x = x, y = predicted, colour = season)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  xlab("Human Activity (seconds/day)")+
+  ylab("Predicted Pig Activity (seconds/day)")+
+  #scale_color_discrete(name = "", 
+  #                    breaks = c(0,3,6,9),
+  #                     labels = c("At Campground", "3km", "6km", "9km"))+
+  #scale_fill_discrete(name = "",
+  #                     breaks = c(0,3,6,9),
+  #                     labels = c("At Campground", "3km", "6km", "9km"))+
+  theme_classic()+
+  facet_wrap(~season)+
+  geom_jitter(data = pig_activity, aes(x = humans_per_trapnight, y = seconds_by_trapnight, colour = season))
+
+
+
+####### full model (sucks) #######
+pig_full_plot  <- ggplot(pig_response_full, aes(x = x, y = predicted, color = group)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  #xlab("Human Activity (seconds/day)")+
+  xlab("Distance from Jalama Campground (km)")+
+  ylab("Predicted Pig Activity (seconds/day)")+
+  scale_color_discrete(name = "", 
+                      breaks = c(0,20,40),
+                       labels = c("none", "20 sec/night", "40 sec/night"))+
+  scale_fill_discrete(name = "",
+                       breaks = c(0,20,40),
+                       labels = c("none", "20 sec/night", "40 sec/night"))+
+  theme_classic()+
+  geom_jitter(data = pig_activity, aes(x = dist_jalama, y = seconds_by_trapnight, color = sitename))
+
+####### plotting the two seasons separately for scale ####### 
+
+pig_raw_wetonly <- pig_activity %>% 
+  filter(season == "wet")
+pig_response_wet <- pig_response_full %>% 
+  filter(season == "wet") %>%
+  rename(humans = group)
+pig_full_wet <- ggplot(pig_response_wet, aes(x = x, y = predicted, color = humans)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = humans), linetype = 0, alpha = 0.1)+
+  #xlab("Human Activity (seconds/day)")+
+  xlab("Distance from Jalama Campground (km)")+
+  ylab("Predicted Pig Activity (seconds/day)")+
+  scale_color_discrete(name = "", 
+                      breaks = c(0,20,40),
+                       labels = c("none", "20 sec/night", "40 sec/night"))+
+  scale_fill_discrete(name = "",
+                       breaks = c(0,20,40),
+                       labels = c("none", "20 sec/night", "40 sec/night"))+
+  theme_classic()+
+  geom_jitter(data = pig_raw_wetonly, aes(x = dist_jalama, y = seconds_by_trapnight, color = "blue"))
+  
+  
+pig_full_dry <-
+
+#png(here("figures/pig_activity_inxn.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#pig_inxn_plot
+#dev.off()
+
+r.squaredGLMM(pig_full)
+r.squaredGLMM(pig_1)
+
+```
+
+### deer
+```{r deer prediction graph}
+
+############# ~ DISTANCE #############
+deer_dist_response <- data.frame(predict_response(deer_dist, terms = c("dist_jalama [0:12]"))) 
+
+deer_dist_plot <- ggplot(deer_dist_response, aes (x, predicted)) +
+  geom_line(colour = "#1CBE4F")+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Deer Activity (seconds)")+
+  theme_classic()+
+  geom_jitter(data = deer_activity, aes(x = dist_jalama, y = seconds_by_trapnight, colour = season), shape = 1)+
+  scale_color_manual(name = "Season", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )
+
+#png(here("figures/deer_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#deer_dist_plot
+#dev.off()
+
+############# ~ HUMAN #############
+#deer_human_response <- data.frame(predict_response(deer_add, terms = c("human_seconds"))) 
+
+#deer_human_plot <- ggplot(deer_human_response, aes (x, predicted)) +
+#  geom_line(colour = "#1CBE4F")+
+#  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
+#  xlab("Human Activity (seconds)")+
+#  ylab("Predicted Deer Activity (seconds)")+
+#  theme_classic()
+  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
+
+#png(here("figures/deer_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#deer_human_plot
+#dev.off()
+
+r.squaredGLMM(deer_add)
+r.squaredGLMM(deer_1)
+
+```
+
+
+#### Making a combo plot for all species responses
+```{r combo species activity}
+# using same colors as before:
+IDcolors <- alphabet.colors(15)
+# coyote is 'forest' #1C8356
+# pig is 'green' #16FF32
+# deer is 'jade' #1CBE4F
+
+pig_response_dist <- data.frame(predict_response(pig_full, terms = "dist_jalama"))
+pig_response_humans <- data.frame(predict_response(pig_full, terms = "human_seconds"))
+
+all_spp_humans <- ggplot()+ # something is funky so i'm having to include 'mapping =' in front of aes() to get it to recognize
+  geom_line(coyote_human_response, mapping = aes(log10(x), log10(predicted)), colour = "#1C8356")+
+  #geom_ribbon(coyote_human_response, mapping = aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  
+  geom_line(pig_response_humans, mapping = aes(x = log10(x), y = log10(predicted)), colour = "#16FF32")+
+  #geom_ribbon(pig_response_humans, mapping = aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  
+  geom_line(deer_human_response, mapping = aes(x = log10(x), y = log10(predicted)), colour = "#1CBE4F")+
+  #geom_ribbon(deer_human_response,mapping =  aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
+  
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Mammal Activity (seconds)")+
+  theme_classic()
+
+# ok this sucks even when log transformed
+
+```
+### Finally plotting richness predictions
+```{r richenss response}
+
+############# ~ DISTANCExSEASON #############
+richness_dist_response <- data.frame(predict_response(richness_full_distxseas, terms = c("dist_jalama", "season"))) %>% 
+  rename(season = group)
+
+richness_inxn_plot <- ggplot(richness_dist_response, aes (x, predicted, color = season)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = season), linetype = 0, alpha = 0.1)+
+  geom_point(data = diversity_df, aes(x = dist_jalama, y = richness, colour = season), shape =1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Richness")+
+  scale_color_manual(name = "Season", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )+
+    scale_fill_manual(name = "Season", 
+                    values = c("wet" = "dodgerblue1", "dry" = "gold")
+                      )+
+  ylim(1, 6) +
+  theme_classic()
+
+#png(here("figures/richness_distxseas.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#richness_inxn_plot
+#dev.off()
+
+############# ~ HUMAN #############
+richness_human_response <- data.frame(predict_response(richness_full_distxseas, terms = c("humans_per_trapnight"))) 
+
+richness_human_plot <- ggplot(richness_human_response, aes (x, predicted)) +
+  geom_line(colour = "#1CBE4F")+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
+  xlab("Human Activity (seconds/trap-night)")+
+  ylab("Predicted Species Richness")+
+  theme_classic()+
+  geom_jitter(data = diversity_df, aes(x = humans_per_trapnight, y = richness))
+
+#png(here("figures/richness_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#richness_human_plot
+#dev.off()
+
+r.squaredGLMM(richness_add)
+r.squaredGLMM(richness_1)
+r.squaredGLMM(richness_gaus)
+
+```
+
+
+
+# Leaving the world of Frequentist Stats now...
+#### We need to bin the data into 1 day "surveys" so that we can run a multi-species occupancy model using spOccupancy and have multiple samples per month, also need to plug in zeros
+```{r make new dataframe with 1 day samples}
+# marisa is using a different dataset for the bayesian stuff that I made her - it includes daily human counts (although a lot fewer than our estimates suggest)
+## this is the one I made for her
+mammals_humans <- read_csv(here("data/classifications_w_humans_metadata_full_9aug2024.csv")) %>% 
+  mutate(date = mdy(date)) %>% 
+  rename(trapnights = days_per_month)
+
+all_days_sampled # will need this dataframe
+
+all_days_sampled2 <- all_days_sampled %>% 
+  mutate(date = date(each_date)) %>% # hopefully this column will let us full_join on date
+  mutate(year = year(each_date)) %>% 
+  mutate(day = day(each_date)) %>% 
+  mutate(number_of_objects = 0) %>% 
+  rename(timestamp = each_date) %>% 
+  unite("sitemonth_id", c(sitename, month), sep = ".", remove = FALSE) %>% 
+  select(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp)  %>% 
+  #mutate(check = gl(7, 1, length = length(site_sample_id))) # gl is apparently a way to generate a sequence that i'll never remember (7 integers, repeat each integer once, until end of df) don't need this anymore
+
+# still need to add in metadata to this so it's filled in correctly during the full bind, including dist, habitats, lat lon, iz type, burst settings, humans, and trapnights
+  left_join(., metadata_by_month, by = join_by(property, sitename, month, sitemonth_id)) %>% 
+  select(!c(human_seconds, n_human_shots)) # will calculate this from human data in dataframe
+
+
+mammals_occupancy_full <- mammals_humans %>% 
+  full_join(., all_days_sampled2 #, by = join_by(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp) # so many columns to bind on, but it should automatically select all the similar ones
+            ) 
+
+#write_csv(mammals_occupancy, "mammals_occupancy.csv")
+
+mammals_occupancy_byday <- mammals_occupancy_full %>% 
+  group_by(property, sitename, dist_jalama, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, # site specific grouping vars
+           month, sitemonth_id, trapnights, # month specific grouping vars
+           date, # day specific grouping vars
+           common_name # need sums by species
+           ) %>% 
+  summarise(raw_daily_counts = sum(number_of_objects)) %>% 
+  
+  # now we need to pivot to remove NA rows and insert zeroes
+  
+  pivot_wider(names_from = common_name, 
+              #names_sep = "_",
+              names_prefix = "sp_",
+              values_from = raw_daily_counts, 
+              values_fill = 0) %>% 
+  select(!sp_NA) %>% # we no longer need this columns now that all the zeros are filled in, so we should be able to pivot longer now and get a count of spp for every day sampled
+  pivot_longer(cols = starts_with("sp_"),
+               names_to = "common_name",
+               names_prefix = "sp_",
+               values_to = "raw_daily_counts") %>% 
+  mutate(binary_occupancy = case_when(raw_daily_counts > 1 ~ 1,
+                                      raw_daily_counts == 0 ~ 0)) # creates a binary column for occupancy
+
+write_csv(mammals_occupancy_byday, here("data/mammals_daily_occupancy.csv"))
+
+```
+
+
+# graveyard
+
+### Testing out GAMM for pig data
+```{r pig gamm}
+
+# code from Zuur video @ end, they didnt actually cover it
+# got help here: https://www.youtube.com/watch?v=0zZopLlomsQ
+# Section 11: Poisson GAMM----
+
+# alain's code:
+#' This should have been the second model, or perhaps even the starting
+#' point of the entire analysis.
+M5 <- gam(NCalls ~ 1 + SexParent + FoodTreatment + 
+                   s(ArrivalTime, bs = "cr") + # s means spline - controls the complexity of spline, bs is spline type, m is penalty for ??
+                   s(Nest, bs = "re"), # or this
+          select = TRUE, # or this
+          method = "REML",
+          data = Owls,
+          family = "poisson")
+
+summary(M5)
+draw(M5, select = 1)
+
+### try with our pig data
+pig_gam1 <- gam(activity_seconds ~ humans_per_trapnight * season + # inxs, how will this handle??
+                  s(dist_jalama, bs = ),
+                data = pig_activity, 
+                method = "REML", 
+                family = "poisson")
+
+
+#' Now the whole game starts over again. 
+#'  -Execute a NB GAMM.
+#'  -Execute a ZIP GAMM.
+#'  -Execute a ZINB GAMM.
+
+#' In our course:  
+#'    Zero-inflated GLM, GAM, GLMM and GAMM for the analysis of 
+#'    spatial and spatial-temporal correlated data using R-INLA
+#' we apply a zero-inflated Poisson GAM with spatial correlation in 
+#' these data. The reason for that is as follows.
+
+#' We will extract the estimated random effects for the nests, obtained by
+#' the GAMM.
+
+
+
+#' We first specify a MyData data frame containing the Site identities
+MyData <- data.frame(Nest = levels(Owls$Nest))
+
+#' Next we set all other covariates to something (what is irrelevant).
+MyData$ArrivalTime   <- 0
+MyData$SexParent     <- factor("Female", levels = c("Female", "Male"))
+MyData$FoodTreatment <- factor("Deprived", levels = c("Deprived", "Satiated"))
+
+
+#' This is what we just created:
+head(MyData, 50)
+
+
+#' We then use the predict function with type = "terms"
+P5 <- predict(M5, 
+              MyData, 
+              type = "terms", 
+              se.fit = TRUE)
+head(P5$fit)
+
+#' If you were to add up all the values on a specific row, then
+#' We extract the estimated random effects and their standard errors:
+MyData$ai    <- P5[["fit"]][ , "s(Nest)"]
+MyData$ai.se <- P5[["se.fit"]][ , "s(Nest)"]
+
+#' Here is our final product. The ai column contains the estimated
+#' random effects. They are the same as those in coef(M2). There is no
+#' benefit in extracting them in this way.
+head(MyData)
+
+#' We put the random effects in a dotchart.
+MyData$RowID <- 1:nrow(MyData)
+
+p <- ggplot(data = MyData, 
+            aes(x = ai, 
+                y = RowID)) 
+p <- p + geom_point(size = 1, col = grey(0.5)) 
+p <- p + xlab("Estimated random effect")
+p <- p + ylab("Nest identity")                       
+p <- p + theme(text = element_text(size = 15)) 
+p <- p + geom_vline(xintercept = 0, lty = 2, col = "red")
+p
+
+#' And add errorbars.
+p2 <- p + geom_errorbarh(data = MyData,
+                         aes(y = RowID, 
+                             xmax = ai + 1.96 * ai.se, 
+                             xmin = ai - 1.96 * ai.se),
+                         col = "blue",
+                         height = 0.05,
+                         alpha = 0.2)
+p2
+#' We can't see the spatial information in this graph.
+#' To do this, we first calculate average latitude and longitude 
+#' values for each site.
+MyData$Latitude  <- tapply(Owls$Latitude, FUN = mean, INDEX = Owls$Nest)
+MyData$Longitude <- tapply(Owls$Longitude, FUN = mean, INDEX = Owls$Nest)
+
+#' We will plot longitude versus latitude, and superimpose the 
+#' random effects on this graph. We will use different colours
+#' for positive and negative random effects, and a large dot
+#' refers to a large (in absolute sense) random effect. There should
+#' be no spatial clustering of random effects.
+MyData$Size <- abs(MyData$ai)
+MyData$Sign <- ifelse(MyData$ai >=0, "Positive", "Negative")
+
+p <- ggplot(data = MyData, 
+            aes(x = Longitude, 
+                y = Latitude,
+                size = Size,
+                col = Sign)) 
+p <- p + geom_point() 
+p <- p + xlab("Longitude")
+p <- p + ylab("Latitude")     
+p <- p + coord_fixed(ratio = 1) 
+p <- p + theme(text = element_text(size = 15)) 
+p
+#' Bugger...do we have a spatial pattern in these random effects?
+
+
+```
+
+
+### Old model plots
+```{r}
+#all_activity_ZI <-
+#  data.frame(predict_response(glmm_full_distxhum_zi, terms = c("dist_jalama [0:12]", "total_human_sec [0, 100, 200]"))) # not the best model anymore but keeping it because good code
+
+#activity_plot_ZI <- 
+#  ggplot(all_activity_ZI, aes (x, predicted, colour = group)) +
+#  geom_line()+
+#  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+#  xlab("Distance From Jalama Beach (km)")+
+#  ylab("Predicted Mammal Activity (seconds/day)")+
+#  scale_fill_discrete(name = "", 
+#                      breaks = c(0,100,200),
+#                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds/day)", "High Human Activity (200 seconds/day)"))+
+#  scale_color_discrete(name = "",
+#                       breaks = c(0,100,200),
+#                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds/day)", "High Human #Activity (200 seconds/day)"))+
+  #theme(legend.title = element_blank())+
+#  theme_classic()+
+#  geom_jitter(data = activity_site_month_sp, aes(x = dist_jalama, y = seconds_by_trapnight, colour = property), shape = 1)+ # seconds per trapnight
+#  scale_color_discrete(name = "",
+                       #breaks = c(,3,6,9),
+                       #labels = c("At Jalama Beach Campground", "3 Kilometers Away", "6 Kilometers Away", "9 Kilometers Away")
+#                       )
+
+
+######## with distance from jalama on the x and human activity as separate curves ######## 
+
+all_activity_response1 <- #plot( # plot function is helpful but i want ot ggplot
+  data.frame(predict_response(glmm_full_distxhum, terms = c("dist_jalama", "total_human_sec [0, 100, 200]"))) # old syntax was ggpredict, now it's predict_response, brackets indicate desired values of factor
+             #condition = c(trapnights = mean(activity_site_month_sp$trapnights)) # apparently this is how we deal with offset, according to [https://stackoverflow.com/questions/75998389/how-to-get-ggeffects-to-use-the-actual-offset-values-rather-than-the-average] ## might not be necessary, see below
+             
+
+# from github fix log for ggeffects:
+#When the model formula contains an offset-term, and the offset term is fixed at a specific value, the response variable is now automatically transformed back to the original scale, and the offset-term is added to the predicted values. A warning is printed when model contains transformed offset-terms that are not fixed, e.g. via the condition argument.
+# SO PRETTY SURE the predicted value is value/mean offset = activity seconds per day
+
+activity_plot <- ggplot(all_activity_response, aes (x, predicted, colour = group)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  xlab("Distance From Jalama Beach (km)")+
+  ylab("Predicted Mammal Activity (seconds)")+
+  scale_fill_discrete(name = "", 
+                      breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  scale_color_discrete(name = "",
+                       breaks = c(0,100,200),
+                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
+  #theme(legend.title = element_blank())+
+  theme_classic()+
+  geom_jitter(data = activity_site_month_sp, aes(x = dist_jalama, y = seconds_by_trapnight, colour = property), shape = 1)
+
+#png(here("figures/total_activity_model.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
+#activity_plot
+#dev.off()
+
+######## with human activity on the x and distance as separate curves ######## 
+
+all_activity_response2 <- #plot( # plot function is helpful but i want ot ggplot
+  data.frame(predict_response(glmm_full_distxhum, terms = c("total_human_sec [0:2000]", "dist_jalama [0, 3, 6, 9]"))) # brackets indicate desired values of factor
+
+
+activity_plot2 <- ggplot(all_activity_response2, aes (x, predicted, colour = group)) +
+  geom_line()+
+  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
+  xlab("Human Activity (seconds)")+
+  ylab("Predicted Mammal Activity (seconds)")+
+  scale_fill_discrete(name = "", 
+                      breaks = c(0,3,6,9),
+                       labels = c("At Jalama Beach Campground", "3 Kilometers Away", "6 Kilometers Away", "9 Kilometers Away"))+
+  scale_color_discrete(name = "",
+                       breaks = c(0,3,6,9),
+                       labels = c("At Jalama Beach Campground", "3 Kilometers Away", "6 Kilometers Away", "9 Kilometers Away"))+
+  #theme(legend.title = element_blank())+
+  theme_classic()+
+  geom_jitter(data = activity_site_month_sp, aes(x = total_human_sec, y = seconds_by_trapnight, colour = property))
+```
+
+
+### Visualize Data ~ Point Conception
+```{r plot diffs above and below PC, eval=FALSE, include=FALSE}
+
+pc_violin <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
+  geom_violin()
+
+pc_boxplot <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
+  geom_boxplot()
+
+```
+#### Run a T-Test
+```{r point conception t test, eval=FALSE, include=FALSE}
+
+activity_site_month_ttest <- activity_site_month_sp %>% 
+  filter(!point_conception == "north of Jalama")
+
+t.test(activity_seconds ~ point_conception, data = activity_site_month_ttest)
+
+```
+#### Full community t-test was non-sig so investigating species by species//some groups
+```{r pc hypothesis with spp and groups, eval=FALSE, include=FALSE}
+
+######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
+
+activity_site_month_sp <- mammals_clean %>% # first append monthly trapnights to full dataset
+  group_by(sitename, month, dist_jalama, days_active, burst_settings, utm_x, utm_y, common_name) %>% 
+  summarize(total_captures = n(), # count number of rows (observations) in each category
+            ) %>% # had a hard time with the other columns so I'm tossing them out into a mutate:
+  mutate(activity_seconds = ceiling(total_captures/burst_settings)) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10)), rounds them UP to integers for glms
+  mutate(seconds_by_trapnight = activity_seconds/as.numeric(days_active)) %>% 
+  # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
+  mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
+                                      utm_y > -120.452725 ~ "below",
+                                      utm_y < -120.506037 ~ "north of Jalama")) # lon of north jalama cam
+  
+  
+######################################### visualize ###############################################
+
+pc_violin_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
+  geom_violin()+
+  facet_wrap(~common_name)
+
+pc_boxplot_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
+  geom_boxplot()+
+  facet_wrap(~common_name)
+
+########################################### coyotes only #############################################
+coyote_activity <- activity_site_month_sp %>% 
+  filter(common_name == "coyote") #%>% 
+  filter(!point_conception == "north of Jalama")
+
+t.test(activity_seconds ~ point_conception, data = coyote_activity)
+
+
+```
+
+
+#### original species models below:
+```{r coyote glmm}
+
+# already made a yote df, need to update it tho
+coyote_activity <- activity_site_month_sp %>% 
+  filter(common_name == "coyote")
+
+# how does the data look
+ggplot(coyote_activity, aes(x = activity_seconds)) +
+  geom_histogram()
+
+# poisson diagnostics NOT good, def a neg binom situation
+#coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * human_seconds #+ (1|sitename) 
+#                     + (1|property), # swapping from glmmTMB to glmer to see if it'll let us make an AIC table
+#                         data = coyote_activity, 
+#                         family = poisson(link = "log"), 
+#                         offset = log10(trapnights), 
+#                         #na.action = "na.fail",# necessary for dredge to work
+#                       na.action = "na.exclude"
+#                       ) 
+
+coyote_full <- glmmTMB(activity_seconds ~ dist_jalama * total_human_sec * season + (1|sitename), 
                          data = coyote_activity, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
@@ -1357,504 +2973,6 @@ plot(allEffects(deer_add))
 r.squaredGLMM(deer_add)
 
 ```
-# now we look at richness with the same predictor variables
-```{r richness model}
-
-# we can use the activity_wide matrix to calculate richness
-richness_matrix <- activity_wide %>% 
-  select(!c(property, protection_rank, sitename, dist_jalama, month, human_seconds, trapnights, burst_settings)) %>% 
-  column_to_rownames("sitemonth_id")  #this is important for separating site names from count data (for matrix reasons)
-
-# sp.count from vegan calculates richness
-sp.count <- specnumber(richness_matrix) # vector
-
-rich_df <- sp.count %>% 
-  enframe()%>% 
-  rename(sitemonth_id = name,
-         richness = value)
-
-# vegan::diversity() will calculate shannon (default), simpson, and fisher indices
-shannondiv <- diversity(richness_matrix) 
-# again creates named vector 
-
-# attach it back to the dataframe
-diversity_df <- shannondiv %>% 
-  # convert named vector to dataframe
-  enframe() %>% 
-  rename(sitemonth_id = name,
-         sh_diversity = value) %>% 
-  
-# join with metadata: this joins shandiv_df to site_type matching shandiv_df$name to site_type$site
-  full_join(., activity_site_month_sp, by = join_by(sitemonth_id)) %>%
-  full_join(., rich_df, by = join_by(sitemonth_id)) %>% 
-  distinct(sitename, month, sh_diversity, .keep_all = TRUE)
-
-# how does richness data look?
-ggplot(diversity_df, aes(x = richness)) +
-  geom_histogram()
-
-# how does shanvid data look?
-ggplot(diversity_df, aes(x = sh_diversity)) +
-  geom_histogram()
-# wow it's almost normal, but with a bunch of zeros
-
-################# model time ###################
-
-richness_pois <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = poisson(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_nb <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = nbinom2(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_gaus <- glmmTMB(richness ~ dist_jalama * human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "identity"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_null_rndms <- glmmTMB(richness ~ 1 + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_null_rndms1 <- glmmTMB(richness ~ 1 + (1|sitename), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_null_rndms2 <- glmmTMB(richness ~ 1 + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_null <- glmmTMB(richness ~ 1, 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_add <- glmmTMB(richness ~ dist_jalama + human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_1 <- glmmTMB(richness ~ dist_jalama + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-
-richness_2 <- glmmTMB(richness ~ human_seconds + (1|sitename) + (1|property), 
-                         data = diversity_df, 
-                         family = gaussian(link = "log"), 
-                         offset = log10(trapnights), 
-                         #na.action = "na.fail",# necessary for dredge to work
-                       na.action = "na.exclude"
-                       ) 
-  
-
-# having trouble with model fit, doesn't predict the data well even though they are counts (of species)
-simulationOutput_rich <- simulateResiduals(fittedModel = richness_gaus)
-plot(simulationOutput_rich)
-plotResiduals(simulationOutput_rich)
-testZeroInflation(simulationOutput_rich)
-
-#summary(richness_1)
-#summary(richness_add)
-summary(richness_gaus)
-summary(richness_add)
-
-r.squaredGLMM(richness_add)
-r.squaredGLMM(richness_gaus)
-
-plot(allEffects(richness_1))
-plot(allEffects(richness_add))
-plot(allEffects(richness_nb))
-plot(allEffects(richness_gaus))
-
-```
-### Finally we can make some pretty prediction figures
-```{r activity prediction graph}
-
-all_activity_response <- #plot( # plot function is helpful but i want ot ggplot
-  data.frame(predict_response(glmm_full_off, terms = c("dist_jalama", "human_seconds [0, 100, 200]"))) # old syntax was ggpredict, now it's predict_response, brackets indicate desired values of factor
-  #, 
-                          #facets = TRUE, 
-                          #show_data = TRUE)
-
-activity_plot <- ggplot(all_activity_response, aes (x, predicted, colour = group)) +
-  geom_line()+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Mammal Activity (seconds)")+
-  scale_fill_discrete(name = "", 
-                      breaks = c(0,100,200),
-                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
-  scale_color_discrete(name = "",
-                       breaks = c(0,100,200),
-                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (200 seconds)"))+
-  #theme(legend.title = element_blank())+
-  theme_classic()
-  #geom_jitter(data = activity_site_month_sp, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/total_activity_model.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#activity_plot
-#dev.off()
-
-r.squaredGLMM(glmm_full_off)
-r.squaredGLMM(glmm_2)
-
-```
-```{r coyotes prediction graph}
-
-############# ~ DISTANCE #############
-coyote_dist_response <- data.frame(predict_response(coyote_add, terms = c("dist_jalama"))) 
-
-coyote_dist_plot <- ggplot(coyote_dist_response, aes (x, predicted)) +
-  geom_line(colour = "#1C8356")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1C8356")+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Coyote Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = coyote_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/coyote_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#coyote_dist_plot
-#dev.off()
-
-############# ~ HUMAN #############
-coyote_human_response <- data.frame(predict_response(coyote_add, terms = c("human_seconds"))) 
-
-coyote_human_plot <- ggplot(coyote_human_response, aes (x, predicted)) +
-  geom_line(colour = "#1C8356")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1C8356")+
-  xlab("Human Activity (seconds)")+
-  ylab("Predicted Coyote Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = coyote_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/coyote_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#coyote_human_plot
-#dev.off()
-
-r.squaredGLMM(coyote_add)
-r.squaredGLMM(coyote_1)
-
-```
-```{r deer prediction graph}
-
-############# ~ DISTANCE #############
-deer_dist_response <- data.frame(predict_response(deer_add, terms = c("dist_jalama"))) 
-
-deer_dist_plot <- ggplot(deer_dist_response, aes (x, predicted)) +
-  geom_line(colour = "#1CBE4F")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Deer Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/deer_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#deer_dist_plot
-#dev.off()
-
-############# ~ HUMAN #############
-deer_human_response <- data.frame(predict_response(deer_add, terms = c("human_seconds"))) 
-
-deer_human_plot <- ggplot(deer_human_response, aes (x, predicted)) +
-  geom_line(colour = "#1CBE4F")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
-  xlab("Human Activity (seconds)")+
-  ylab("Predicted Deer Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/deer_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#deer_human_plot
-#dev.off()
-
-r.squaredGLMM(deer_add)
-r.squaredGLMM(deer_1)
-
-```
-
-```{r pig prediction graph}
-
-############# ~ DISTANCE #############
-pig_response_dist <- data.frame(predict_response(pig_full, terms = "dist_jalama"))
-
-pig_dist_plot <- ggplot(pig_response_dist, aes (x, predicted)) +
-  geom_line(colour = "#16FF32")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#16FF32")+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Pig Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/pig_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#pig_dist_plot
-#dev.off()
-
-############# ~ HUMAN #############
-pig_response_humans <- data.frame(predict_response(pig_full, terms = "human_seconds"))
-
-pig_human_plot <- ggplot(pig_response_humans, aes (x, predicted)) +
-  geom_line(colour = "#16FF32")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#16FF32")+
-  xlab("Human Activity (seconds)")+
-  ylab("Predicted Pig Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = deer_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/pig_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#pig_human_plot
-#dev.off()
-
-############# ~ DISTANCE * HUMAN #############
-# make a histogram to pick relevant levels of human activity
-human_levels <- ggplot(activity_site_month_sp, aes(x = human_seconds))+
-  geom_histogram(bins = 30)
-
-pig_response <- data.frame(predict_response(pig_full, terms = c("dist_jalama", "human_seconds [0, 100, 300]")))
-
-pig_inxn_plot <- ggplot(pig_response, aes(x, predicted, linetype = group)) +
-  geom_line(colour = "#16FF32")+
-  #geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high, fill = group), linetype = 0, alpha = 0.1)+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Pig Activity (seconds)")+
-  scale_linetype_discrete(name = "", 
-                      breaks = c(0,100,300),
-                       labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (300 seconds)"))+
-  #scale_fill_discrete(name = "",
-  #                     breaks = c(0,100,300),
-  #                     labels = c("No Human Activity", "Moderate Human Activity (100 seconds)", "High Human Activity (300 seconds)"))+
-  theme_classic()
-  #geom_jitter(data = pig_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/pig_activity_inxn.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#pig_inxn_plot
-#dev.off()
-
-r.squaredGLMM(pig_full)
-r.squaredGLMM(pig_1)
-
-```
-#### Making a combo plot for all species responses
-```{r combo species activity}
-# using same colors as before:
-IDcolors <- alphabet.colors(15)
-# coyote is 'forest' #1C8356
-# pig is 'green' #16FF32
-# deer is 'jade' #1CBE4F
-
-pig_response_dist <- data.frame(predict_response(pig_full, terms = "dist_jalama"))
-pig_response_humans <- data.frame(predict_response(pig_full, terms = "human_seconds"))
-
-all_spp_humans <- ggplot()+ # something is funky so i'm having to include 'mapping =' in front of aes() to get it to recognize
-  geom_line(coyote_human_response, mapping = aes(log10(x), log10(predicted)), colour = "#1C8356")+
-  #geom_ribbon(coyote_human_response, mapping = aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
-  
-  geom_line(pig_response_humans, mapping = aes(x = log10(x), y = log10(predicted)), colour = "#16FF32")+
-  #geom_ribbon(pig_response_humans, mapping = aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
-  
-  geom_line(deer_human_response, mapping = aes(x = log10(x), y = log10(predicted)), colour = "#1CBE4F")+
-  #geom_ribbon(deer_human_response,mapping =  aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
-  
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Mammal Activity (seconds)")+
-  theme_classic()
-
-# ok this sucks even when log transformed
-
-```
-#### Finally plotting richness predictions
-```{r richenss response}
-
-############# ~ DISTANCE #############
-richness_dist_response <- data.frame(predict_response(richness_gaus, terms = c("dist_jalama"))) 
-
-richness_dist_plot <- ggplot(richness_dist_response, aes (x, predicted)) +
-  geom_line()+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1)+
-  geom_jitter(data = diversity_df, aes(x = dist_jalama, y = richness, colour = property))+
-  xlab("Distance From Jalama Beach (km)")+
-  ylab("Predicted Richness")+
-  ylim(0, 6) +
-  theme_classic()
-  
-
-#png(here("figures/richness_activity_dist.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#richness_dist_plot
-#dev.off()
-
-############# ~ HUMAN #############
-richness_human_response <- data.frame(predict_response(richness_add, terms = c("human_seconds"))) 
-
-richness_human_plot <- ggplot(richness_human_response, aes (x, predicted)) +
-  geom_line(colour = "#1CBE4F")+
-  geom_ribbon(aes(x, ymin = conf.low, ymax = conf.high), linetype = 0, alpha = 0.1, fill = "#1CBE4F")+
-  xlab("Human Activity (seconds)")+
-  ylab("Predicted richness Activity (seconds)")+
-  theme_classic()
-  #geom_jitter(data = richness_activity, aes(x = dist_jalama, y = activity_seconds, colour = property))
-
-#png(here("figures/richness_activity_human.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
-#richness_human_plot
-#dev.off()
-
-r.squaredGLMM(richness_add)
-r.squaredGLMM(richness_1)
-r.squaredGLMM(richness_gaus)
-
-```
-
-
-
-# Leaving the world of Frequentist Stats now...
-#### We need to bin the data into 1 day "surveys" so that we can run a multi-species occupancy model using spOccupancy and have multiple samples per month, also need to plug in zeros
-```{r make new dataframe with 1 day samples}
-# marisa is using a different dataset for the bayesian stuff that I made her - it includes daily human counts (although a lot fewer than our estimates suggest)
-## this is the one I made for her
-mammals_humans <- read_csv(here("data/classifications_w_humans_metadata_full_9aug2024.csv")) %>% 
-  mutate(date = mdy(date)) %>% 
-  rename(trapnights = days_per_month)
-
-all_days_sampled # will need this dataframe
-
-all_days_sampled2 <- all_days_sampled %>% 
-  mutate(date = date(each_date)) %>% # hopefully this column will let us full_join on date
-  mutate(year = year(each_date)) %>% 
-  mutate(day = day(each_date)) %>% 
-  mutate(number_of_objects = 0) %>% 
-  rename(timestamp = each_date) %>% 
-  unite("sitemonth_id", c(sitename, month), sep = ".", remove = FALSE) %>% 
-  select(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp)  %>% 
-  #mutate(check = gl(7, 1, length = length(site_sample_id))) # gl is apparently a way to generate a sequence that i'll never remember (7 integers, repeat each integer once, until end of df) don't need this anymore
-
-# still need to add in metadata to this so it's filled in correctly during the full bind, including dist, habitats, lat lon, iz type, burst settings, humans, and trapnights
-  left_join(., metadata_by_month, by = join_by(property, sitename, month, sitemonth_id)) %>% 
-  select(!c(human_seconds, n_human_shots)) # will calculate this from human data in dataframe
-
-
-mammals_occupancy_full <- mammals_humans %>% 
-  full_join(., all_days_sampled2 #, by = join_by(property, deployment_id, sitename, month, sitemonth_id, year, day, date, number_of_objects, timestamp) # so many columns to bind on, but it should automatically select all the similar ones
-            ) 
-
-#write_csv(mammals_occupancy, "mammals_occupancy.csv")
-
-mammals_occupancy_byday <- mammals_occupancy_full %>% 
-  group_by(property, sitename, dist_jalama, utm_x, utm_y, habitat_adjacent, habitat_secondary, iz_type, burst_settings, # site specific grouping vars
-           month, sitemonth_id, trapnights, # month specific grouping vars
-           date, # day specific grouping vars
-           common_name # need sums by species
-           ) %>% 
-  summarise(raw_daily_counts = sum(number_of_objects)) %>% 
-  
-  # now we need to pivot to remove NA rows and insert zeroes
-  
-  pivot_wider(names_from = common_name, 
-              #names_sep = "_",
-              names_prefix = "sp_",
-              values_from = raw_daily_counts, 
-              values_fill = 0) %>% 
-  select(!sp_NA) %>% # we no longer need this columns now that all the zeros are filled in, so we should be able to pivot longer now and get a count of spp for every day sampled
-  pivot_longer(cols = starts_with("sp_"),
-               names_to = "common_name",
-               names_prefix = "sp_",
-               values_to = "raw_daily_counts") %>% 
-  mutate(binary_occupancy = case_when(raw_daily_counts > 1 ~ 1,
-                                      raw_daily_counts == 0 ~ 0)) # creates a binary column for occupancy
-
-write_csv(mammals_occupancy_byday, here("data/mammals_daily_occupancy.csv"))
-
-```
-
-
-# graveyard
-
-### Visualize Data ~ Point Conception
-```{r plot diffs above and below PC, eval=FALSE, include=FALSE}
-
-pc_violin <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
-  geom_violin()
-
-pc_boxplot <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
-  geom_boxplot()
-
-```
-#### Run a T-Test
-```{r point conception t test, eval=FALSE, include=FALSE}
-
-activity_site_month_ttest <- activity_site_month_sp %>% 
-  filter(!point_conception == "north of Jalama")
-
-t.test(activity_seconds ~ point_conception, data = activity_site_month_ttest)
-
-```
-#### Full community t-test was non-sig so investigating species by species//some groups
-```{r pc hypothesis with spp and groups, eval=FALSE, include=FALSE}
-
-######### make table of animal activity ( = incidences adjusted by burst number and corrected for by trap nights) by site and month ###########
-
-activity_site_month_sp <- mammals_clean %>% # first append monthly trapnights to full dataset
-  group_by(sitename, month, dist_jalama, days_active, burst_settings, utm_x, utm_y, common_name) %>% 
-  summarize(total_captures = n(), # count number of rows (observations) in each category
-            ) %>% # had a hard time with the other columns so I'm tossing them out into a mutate:
-  mutate(activity_seconds = ceiling(total_captures/burst_settings)) %>%  # adjusts # of captures by the number of images taken in a burst (8 or 10)), rounds them UP to integers for glms
-  mutate(seconds_by_trapnight = activity_seconds/as.numeric(days_active)) %>% 
-  # we're interested in whether sites are above or below point conception (south of jalama) # because people can't really walk past it from jalama, so we will mutate in a column
-  mutate(point_conception = case_when(utm_y < -120.452725 & utm_y > -120.506037 ~ "above", #lon of PC and south of north jalama cam
-                                      utm_y > -120.452725 ~ "below",
-                                      utm_y < -120.506037 ~ "north of Jalama")) # lon of north jalama cam
-  
-  
-######################################### visualize ###############################################
-
-pc_violin_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
-  geom_violin()+
-  facet_wrap(~common_name)
-
-pc_boxplot_byspp <- ggplot(activity_site_month_sp, aes(x = point_conception, y = activity_seconds)) +
-  geom_boxplot()+
-  facet_wrap(~common_name)
-
-########################################### coyotes only #############################################
-coyote_activity <- activity_site_month_sp %>% 
-  filter(common_name == "coyote") #%>% 
-  filter(!point_conception == "north of Jalama")
-
-t.test(activity_seconds ~ point_conception, data = coyote_activity)
-
-
-```
 
 ## We're going to change gears and use some ready-made packages to understand activity levels
 
@@ -1888,7 +3006,209 @@ require(activity)
 ```
 
 
+## learning to rarefy wiht iNEXT and other richness cacl attempts
+```{r practicing rarefy, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
 
+# we need to adjust for effort by rarefying, specaccum rarefies by site
+# Use specaccum for species accumulation curves where sites are sampled instead of individuals.
+## Methods "random" and "collector" can take weights (w) that give the sampling effort for each site. The weights w do not influence the order the sites are accumulated, but only the value of the sampling effort so that not all sites are equal. 
+## For weighted "random" method the effort refers to the average effort per site, or sum of weights per number of sites. With weighted method = "random", the averaged species richness is found from linear interpolation of single random permutations. Therefore at least the first value (and often several first) have NA richness, because these values cannot be interpolated in all cases but should be extrapolated. The plot function defaults to display the results as scaled to sites, but this can be changed selecting xvar = "effort" (weighted methods)
+
+# *method =  collector: “adds sites in the order they happen to be in the data”
+#specaccum(richness_matrix, method = "collector", w = trapnights) # w weights each sitemonth to standardize for effort
+
+#rarefication_df <- rarefy(richness_matrix, 2) %>%  # rarefy to smallest size sample, e.g. least trapnights which is 1 but 1 fucks with the equation
+#  as_tibble(rownames = "sitemonth_id") #%>% 
+  #mutate(richness_per_day = value/2) # right now it's rarefied to a sample size of two days...
+
+#rarecurve(richness_matrix) # just pass the raw dataframe, can include step = [however many observations]
+
+
+# rarefy function rarefies individual rows of your data: it takes a subsample of your occurrences ("individuals") within each row. If all these sampled individuals have value 1, you will have a subsample of ones, and the sum of ones is the sample size: that was what you got. There is no meaningful way of rarefying a vector of ones: you need count data with some counts > 1.
+# You were perhaps looking for accumulation of genes in your whole data set when subsampling rows of the matrix. This is done in vegan function specaccum (argument method = "exact") which has its own plot etc methods.
+
+# attempting to rarefy using iNEXT because we need sample-based (not indiv-based) rarefaction
+library(iNEXT)
+
+###### iNEXT requires a list of dataframes/matrices that's the opposite shape of ours: "samples" (day) as columns and species names as rownames #####
+### to run "incidence" and "incidence frequency" curves - important for sampling-based rarefication - we need a list of presence/absence matrices for each assemblage ###
+### to run incidence freq, we further need to calculate row.sums for each matrix ###
+# I need columsn for each site, a row of how many days that site was sampled, and the cells have teh FREQUENCY that animals were seen, e.g. how many days of the days sampled that species was seen
+
+source(here("DataWrangling/iNEXT_matrix_generation"))
+
+
+# make sure it works for iNext:
+DataInfo(inext_sitemonth_incraw, datatype = "incidence_raw")
+
+#diversity_estimates <- iNEXT(inext_sitemonth_incraw, datatype = "incidence_raw") # this gives us a list of dataframes, 1) with data about the inext object 2) and 3) information about how rarefaction was done?? and 4) diversity estimates + CI
+
+# now we can graph with a built in grapher:
+
+ggiNEXT(diversity_estimates, type = 1) # type 1 is a sample-size based RE curve, plots curves with CI as a function of sample size (individuals for some reason is the only option if you have raw incidence data)
+
+###### need to now extract the column of richness estimates from the correct dataframe within the iNEXT object ######
+
+# deprecated code because I wrote this into a source code file:
+incid_freq_sitemonth1 <- activity_by_day_matrix %>% 
+  rename(plot.no = trapnights) %>% # testing out renaming this so maybe it works??
+    mutate(across(14:28, ~ case_when( . == 0 ~ 0,
+                                 . > 0 ~ 1))) %>%
+  # need to sum "incidences" (seen or not) over all days per month per site
+  group_by(sitemonth_id, plot.no) %>% 
+  summarise(across(starts_with("sp"), ~ sum(.x))) %>% # this syntax sums all columsn that start with sp by site x month
+  ungroup() %>% 
+  t(.) %>% # transposes, e.g. flips the axis. nice thing is it takes trapnights with it!
+  row_to_names(row_number = 1)
+  # for some reason transpose turned a lot of values into characters
+  #apply(., 2, as.numeric) # don't do this, it deletes row names, only soluation below:
+
+incid_freq_sitemonth <- apply(incid_freq_sitemonth1, 2, as.numeric)
+rownames(incid_freq_sitemonth) <- rownames(incid_freq_sitemonth1)
+
+# attempting to rarefy using iNEXT because we need sample-based (not indiv-based) rarefaction
+library(iNEXT)
+
+hp.abund <- read.delim ('https://raw.githubusercontent.com/zdealveindy/anadat-r/master/data/hp.abund.txt')
+hp.incid <- read.delim ('https://raw.githubusercontent.com/zdealveindy/anadat-r/master/data/hp.incid.txt')
+
+# need to make the daily activity matrix into the right shape:
+abund <- activity_by_day_matrix %>% 
+  select(!c(property, sitename, month, date, dist_jalama, habitat_adjacent, habitat_secondary, iz_type, total_human_sec, humans_per_trapnight, trapnights, burst_settings)) # need only sitemonth and counts for all spp i think
+
+incid <- abund %>% 
+  mutate(across(2:16, ~ case_when(. > 0 ~ 1,
+                                 . == 0 ~ 0)))
+
+incid <- as.data.frame(incid)
+
+DataInfo(incid, datatype = 'incidence_raw')
+
+
+
+### no longer need the following code because i made my freq matrix a different way! below is to make a single raw matrix
+###### creating dataframe for site:month samples ######
+# pull out trapnights
+#trapnights <- activity_wide %>% 
+#  select(sitemonth_id, trapnights) %>% 
+#  #pull(trapnights) %>% 
+#  pivot_wider(names_from = sitemonth_id, 
+#              values_from = trapnights) %>% 
+#  mutate(common_name = "trapnights") %>% 
+#  relocate(common_name) # mutating and relocating this column in there to trick r into binding on a cell that says "trapnights" into the right place, default is to relocate to col 1
+
+# create dataframe
+#inext_incid <- activity_site_month_sp %>% 
+#  # only want species columns, trapnights (# samples needs to be first row), and group (sitemonth)
+#  select(sitemonth_id, common_name, activity_seconds) %>% 
+#  # need incidence, not abundance
+#  mutate(incidence = case_when(activity_seconds == 0 ~ 0,
+#                               activity_seconds > 0 ~ 1)) %>% 
+#  select(-activity_seconds) %>% 
+#  # now pivot so colnames are sitemonths
+#  pivot_wider(#id_cols = c(sitemonth_id, trapnights),
+#              names_from = sitemonth_id, 
+#              values_from = incidence, 
+#              values_fill = 0) %>% 
+#  # now add on trapnights row
+#  full_join(., trapnights) %>% 
+#  clean_names() %>% 
+#  # get row to top
+#  mutate(common_name = fct_relevel(inext_incid$common_name, "trapnights")) %>%  #Any levels not mentioned will be left in their existing order, by default after the explicitly mentioned levels.
+#  arrange(common_name) 
+
+#inext_incid_matrix <- as.data.frame(inext_incid) %>% 
+#  column_to_rownames(var = "common_name")
+
+############### BELOW is for visualizing ############### 
+
+
+###### creating dataframe for site samples ######
+activity_site_sp <- activity_site_month_sp %>% 
+  group_by(sitename, common_name) %>% 
+  summarize(activity_seconds = sum(activity_seconds), 
+            trapnights = sum(trapnights))
+
+trapnights_m <- activity_site_sp %>% 
+  distinct(sitename, trapnights) %>% 
+  pivot_wider(names_from = sitename, 
+              values_from = trapnights) %>% 
+  mutate(common_name = "trapnights") %>% 
+  relocate(common_name)
+
+inext_incid_site <- activity_site_sp %>% 
+  # only want species columns, trapnights (# samples needs to be first row), and group (sitemonth)
+  select(sitename, common_name, activity_seconds) %>% 
+  # need incidence, not abundance
+  mutate(incidence = case_when(activity_seconds == 0 ~ 0,
+                               activity_seconds > 0 ~ 1)) %>% 
+  select(-activity_seconds) %>% 
+  # now pivot so colnames are sitemonths
+  pivot_wider(
+              names_from = sitename, 
+              values_from = incidence, 
+              values_fill = 0) %>% 
+  # now add on trapnights row
+  full_join(., trapnights_m) %>% 
+  clean_names() %>% 
+  # get row to top
+  mutate(common_name = fct_relevel(common_name, "trapnights")) %>%  #Any levels not mentioned will be left in their existing order, by default after the explicitly mentioned levels.
+  arrange(common_name) 
+
+inext_incid_matrix_site <- as.data.frame(inext_incid_site) %>% 
+  column_to_rownames(var = "common_name")
+
+# make sure it works for iNext:
+DataInfo(inext_incid_matrix_site, datatype = "incidence_raw")
+
+diversity_estimates_site <- iNEXT(inext_incid_matrix_site)
+
+ggiNEXT(diversity_estimates_site, type = 1)
+
+###### creating dataframe for month samples ######
+activity_month_sp <- activity_site_month_sp %>% 
+  group_by(month, common_name) %>% 
+  summarize(activity_seconds = sum(activity_seconds), 
+            trapnights = sum(trapnights))
+
+trapnights_m <- activity_month_sp %>% 
+  distinct(month, trapnights) %>% 
+  pivot_wider(names_from = month, 
+              values_from = trapnights) %>% 
+  mutate(common_name = "trapnights") %>% 
+  relocate(common_name)
+
+inext_incid_month <- activity_month_sp %>% 
+  # only want species columns, trapnights (# samples needs to be first row), and group (sitemonth)
+  select(month, common_name, activity_seconds) %>% 
+  # need incidence, not abundance
+  mutate(incidence = case_when(activity_seconds == 0 ~ 0,
+                               activity_seconds > 0 ~ 1)) %>% 
+  select(-activity_seconds) %>% 
+  # now pivot so colnames are sitemonths
+  pivot_wider(
+              names_from = month, 
+              values_from = incidence, 
+              values_fill = 0) %>% 
+  # now add on trapnights row
+  full_join(., trapnights_m) %>% 
+  clean_names() %>% 
+  # get row to top
+  mutate(common_name = fct_relevel(common_name, "trapnights")) %>%  #Any levels not mentioned will be left in their existing order, by default after the explicitly mentioned levels.
+  arrange(common_name) 
+
+inext_incid_matrix_month <- as.data.frame(inext_incid_month) %>% 
+  column_to_rownames(var = "common_name")
+
+# make sure it works for iNext:
+DataInfo(inext_incid_matrix_month, datatype = "incidence_raw")
+
+diversity_estimates_month <- iNEXT(inext_incid_matrix_month)
+
+ggiNEXT(diversity_estimates_month, type = 2)
+
+
+```
 
 
 

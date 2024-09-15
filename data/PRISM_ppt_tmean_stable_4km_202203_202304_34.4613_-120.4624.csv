@@ -1,0 +1,25 @@
+Date,ppt (inches),tmean (degrees F)
+2022-03,1.55,59.3
+2022-04,0.34,57.7
+2022-05,0,58.7
+2022-06,0,61.3
+2022-07,0,62
+2022-08,0,62.3
+2022-09,1.75,67.9
+2022-10,0.05,61.6
+2022-11,1.29,60.6
+2022-12,4.64,57.5
+2023-01,10.66,55.2
+2023-02,4.8,55.2
+2023-03,7.23,52.3
+2023-04,0,53.8
+PRISM Time Series Data,,
+Location:  Lat: 34.4613   Lon: -120.4624   Elev: 125ft,,
+"Climate variables: ppt,tmean",,
+Spatial resolution: 4km,,
+Period: 2022-03 - 2023-04,,
+Dataset: AN91m,,
+PRISM day definition: 24 hours ending at 1200 UTC on the day shown,,
+Grid Cell Interpolation: Off,,
+Time series generated: 2024-Sep-15,,
+Details: http://www.prism.oregonstate.edu/documents/PRISM_datasets.pdf,,
