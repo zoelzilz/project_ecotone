@@ -7,6 +7,7 @@ library(tidyverse)
 library(here)
 library(janitor)
 library(lubridate)
+library(zoo)
 
 #### import data ####
 
@@ -56,8 +57,51 @@ precip <- all_precip %>%
 #png(here("figures/monthly_precip.png"), width = 10, height = 8, units = "in", pointsize = 12, res = 1000)
 #precip
 #dev.off() 
+
+####### hillary is also interested in the previous 90 days mean precip so i'm going to plot that on here as well #######
+
+#### read in downloaded prism data ####
+precip_daily_orig <- read_csv(here("data/PRISM_ppt_daily_4km_20211201_20230401_34.4576_-120.4652.csv"))
+
+#### clean it ####
+precip_monthly <- precip_daily_orig %>% # this was dumb, i already had this, oh well, need montly for next step
+  clean_names() %>% 
+  mutate(date = mdy(date)) %>% 
+  mutate(month_year = as.yearmon(date)) %>% 
+  group_by(month_year) %>% 
+  summarize(ppt_month = sum(ppt_inches)) %>% 
+  ungroup()
+
+### package zoo has a function for a 3-part rolling mean ###
+precip_rollmean <- precip_monthly %>% 
+  mutate(months = rollapply(month,3,function(x){
+    paste(substr(x,1,1),collapse = '')
+  },align='right',fill=NA)) %>% 
+  mutate_at(vars(ppt_month),~rollmean(.,k=3,align = 'right',fill=NA)) %>% 
+  mutate(prev3_months = lag(months),
+         prev3_mean_ppt = lag(ppt_month))
+
+precip <- precip_rollmean %>% 
+  select(month_year, prev3_mean_ppt) %>% 
+  rename(dummy_date = month_year) %>% # just for plotting purposes
+  na.omit()
   
-  
+#### plot them all together ####
+
+all_precip_plot <- all_precip %>% 
+  mutate(dummy_date = as.yearmon(dummy_date)) %>% 
+  ggplot(., aes(x = dummy_date, y = y30norm, group = 1))+
+  geom_line(color = "dodgerblue", linetype = 2)+
+  geom_line(aes(x = dummy_date, y = ppt_inches, group = 1), color = "red")+
+  geom_line(data = precip, aes(x = dummy_date, y = prev3_mean_ppt), color = "pink")+
+  xlab("Month Sampled")+
+  ylab("Precipitation (inches)")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1, size = 7),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 10)
+  )
   
 ########## GRAVEYARD ############
 ## we could do this by hand but I hate myself so here we go

@@ -60,7 +60,7 @@ mammals_prev <- read_csv(here("data/WI_data_31jul2024/image_classifications_31ju
 
 #unique(mammals_unclean$behavior)
 
-mammals <- mammals_unclean %>% # unclean has most recent human data
+mammals <- mammals_prev %>%
   filter(class == "Mammalia") %>% 
   #filter(!identified_by == "Computer vision") %>%  # need to retain these because they're people pics
   
@@ -181,9 +181,7 @@ mammals <- mammals_unclean %>% # unclean has most recent human data
          common_name != "californian sea lion",
          common_name != "harbor seal",
          common_name != "perissodactyla order",
-         common_name != "bovidae family",
-         common_name != "bighorn sheep",
-         common_name != "rabbit and hare family"
+         common_name != "bovidae family"
 #         common_name != "domestic dog",
 #         common_name != "human",
 #         common_name != "human - camera trapper",
@@ -191,8 +189,7 @@ mammals <- mammals_unclean %>% # unclean has most recent human data
 #         common_name != "human",
 #         common_name != "human-camera trapper",
 #         common_name != "human-pedestrian",
-         ) %>% 
-  mutate(common_name = tolower(common_name)) # need to do this again apparently
+         ) 
 
 spp <- unique(mammals$common_name)
 spp <- unique(mammals$common_name2)
@@ -273,7 +270,7 @@ mammals_fixed_dates <- rbind(mammals_correctdates, fixed_dates) %>%
 ######################## "monthly" deployment data ######################## 
 
 #deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_29jul2024.csv")) %>% 
-deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_9jsep2024.csv")) %>% # switched to this most recent version of metadata on sep 17... hoping it doesn't break evreything
+deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_9sep2024.csv")) %>% # switched to this most recent version of metadata on sep 17... hoping it doesn't break evreything
   clean_names() %>% 
   rename(sitename = camera_name, 
          maint_month = month,
@@ -292,7 +289,6 @@ deployment_data_original <- read_csv(here("data/cam_deployment_data_FIXED_DATES_
   mutate(deployment_id = str_replace(deployment_id, "bc17apr22", "bc_17apr22")) %>%
   mutate(deployment_id = str_replace(deployment_id, "pd28apr22", "pd_28apr22")) %>% 
   filter(!is.na(deployment_id)) %>% # will sort out deployments that don't have an ID because I manually added these in
-  filter(!is.na(day_start)) %>%  # also actively updating this spreadsheet so need to remove deployments that have a deployment id but no start or end date
   
   # need to fix days active column:
   mutate(day_end = mdy_hm(day_end)) %>% 
@@ -308,8 +304,7 @@ deployment_data <- deployment_data_original %>%
   mutate(each_date = map2(day_start, day_end, ~seq(from = .x, to = .y, by = "day"))) %>% # creates a list of all dates between each start and end date (each row)
   unnest(each_date) %>% # expands that list to be one row per date
   mutate(month = month(each_date, label = TRUE)) %>%  # extracts month from the dates
-  mutate(year = year(each_date)) %>% 
-  group_by(deployment_id, year, month) %>% 
+  group_by(deployment_id, month) %>% 
   mutate(days_per_month = n()) %>% 
 # works if i want to keep all rows i just created but i dont, i want to summarize
   distinct(deployment_id, month, .keep_all = TRUE) %>%  # lets me keep only rows that are unique for combo of deployment id and month, while keeping all other columns
@@ -328,75 +323,20 @@ all_days_sampled <- deployment_data_original %>%
 
 ######################## add on human data to montly deployment data #########################
 
-# need to generate counts of human images per site per month, will adjust by burst and # nights later
-humans_est <- mammals_fixed_dates %>% 
-  filter(common_name == "human"|
-         common_name == "domestic dog") %>% 
-  group_by(sitename, year, deployment_id, month) %>%  # not common name bc we'r elumping dogs together w poeple
-  summarize(n_human_shots = n()) %>% 
-  ungroup
+humans_est <- read_csv(here("data/human_activity.csv")) %>%  # current best estimate of sitely, monthly human activity (made 8/3/2023)
+  mutate(month = month(dmy(date), label = TRUE)) %>% 
+  mutate(year = year(dmy(date))) %>% 
+  rename(sitename = site,
+         n_human_shots = n,
+         human_seconds = seconds) %>% # NOT corrected by sampling effort
+  dplyr::select(sitename, year, month, n_human_shots, human_seconds)
 
-# ok lots of human data has the wrong dates, but it's ok, we just need to make sure they have the correct *MONTH* and *YEAR*
-humans_clean <- humans_est %>% 
-  separate(deployment_id, c("depl", "correct_month"), remove = FALSE) %>% 
-  mutate(correct_month = gsub("[^a-zA-Z]", "", correct_month)) %>% 
-  mutate(correct_year = case_when(str_detect(deployment_id, "22") ~ 2022,
-                                  str_detect(deployment_id, "23") ~ 2023)) %>% 
-  # now to manually edit the two deployments with incorrect dates we can't fix otherwise
-  mutate(month = case_when(deployment_id == "boat_18jun22" ~ "Jun",
-                           deployment_id == "boat_20aug22" ~ "Aug", 
-                           TRUE ~ as.character(month))) %>% 
-  select(!c(correct_year, correct_month, deployment_id, depl)) 
-  
-
-#humans_est <- read_csv(here("data/human_activity.csv")) %>%  # current best estimate of sitely, monthly human activity (made 8/3/2023)
-#  mutate(month = month(dmy(date), label = TRUE)) %>% 
-#  mutate(year = year(dmy(date))) %>% 
-#  rename(sitename = site,
-#         n_human_shots = n,
-#         human_seconds = seconds) %>% # NOT corrected by sampling effort
-#  dplyr::select(sitename, year, month, n_human_shots, human_seconds)
-
-deployment_data_humans <- left_join(deployment_data, humans_clean, by = join_by(sitename, year, month)) %>%
-  
-  # need to also manually paste in some COUNTS OF PHOTO FILES where there are zeros because wildlife insights is misbehaving
-  
-  mutate(n_human_shots = case_when(sitename == "Jalama Cam" & month == "Aug" ~ 2629, # 2629 photos in jal_13aug22
-                                   sitename == "Jalama Cam" & month == "Sep" ~ 3003, #	- 3003 photos in jal_17sep22
-                                   sitename == "Jalama Cam" & month == "May" ~ 280, # all these pics are us setting up
-                                   sitename == "Jalama Cam" & month == "Jun" ~ 1943,
-                                   sitename == "Jalama Cam" & month == "Jul" ~ 9818, #11761 photos in jal_20jul22 split into jul and jun and a couple days in may
-                                   sitename == "North Beach Canyon Cam" & month == "May" ~ 0, # these are actually fort cam pics and there aren't any NBCs from May June or Jul bc camera was stolen os this isn't necessary
-                                   sitename == "Percos Boat Cam" & month == "May" ~ 200, # only alive for 3 days in may
-                                   # none of the human photos from vbh_15oct22 (aug, sep, oct) uploaded
-                                   sitename == "Boathouse Cam" & month == "Aug" ~ n_human_shots + 64,
-                                   sitename == "Boathouse Cam" & month == "Sep" ~ 280,
-                                   sitename == "Boathouse Cam" & month == "Oct" ~ n_human_shots + 88,
-                                   sitename == "RIZ Cam Backup" & month == "May" ~ 20,
-                                   sitename == "RIZ Cam S Canyon" & month == "Sep" ~ 20,
-                                   sitename == "RIZ Cam S Canyon" & month == "Oct" ~ 20,
-                                   sitename == "Sudden Canyon Cam" & month == "May" ~ 8,
-                                   sitename == "Sudden Canyon Cam" & month == "Oct" ~ 8,
-                                   
-                                   # these are on WI, but i'm scared to download a new dataset (18 sep 2024) so justmanyally plugging
-                                   sitename == "North Beach Fort Cam" & month == "Aug" ~ 1384,#64 +1320
-                                   sitename == "North Beach Fort Cam" & month == "Jul" ~ 512, #88 + 424
-                                   sitename == "North Beach Fort Cam" & month == "Sep" ~ n_human_shots + 592,
-                                   sitename == "North Beach Fort Cam" & month == "Jun" ~ 480, # 200 + 280
-                                   sitename == "North Beach Fort Cam" & month == "Oct" ~ 24,
-                                   
-                                   TRUE ~ as.numeric(n_human_shots)
-                                   
-                                   )) %>% 
-
-  mutate(human_seconds = ceiling(n_human_shots/burst)) %>% # round up
-  # fill in zeros for where there ACTUALLY IS "no human activity" 
+deployment_data_humans <- left_join(deployment_data, humans_est, by = join_by(sitename, month)) %>% 
+  # fill in zeros for where there "is no human activity" - apparently, must check this
   mutate(human_seconds = case_when(is.na(human_seconds) ~ 0,
                                    TRUE ~ as.numeric(human_seconds))) %>% 
   ungroup() %>% 
-  #select(sitename, deployment_id, month, year, n_human_shots, human_seconds) %>% 
-  mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard #Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))) 
-
+  mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam")))
   
   # turns out there are some duplicates of months that have different human estimates, so we should sum these by month (easy to do using group_by (site, month) and mutate)
   # we do this downstream when we make deployment data into montly data
@@ -429,8 +369,8 @@ metadata_by_deployment <- left_join(deployment_data_humans, metadata2, by = join
   filter(!is.na(deployment_id)) # filters out all the deployments that haven't been reviewed because i don't put in filename prefix if it hasn't been reviewed on WI
 
 # cross checking that all deployments in the metadata are present in the mammals df and vice versa
-#deployments_from_mammalsdf <- mammals_fixed_dates #%>% 
-#  distinct(deployment_id, month, .keep_all = TRUE)
+deployments_from_mammalsdf <- mammals_fixed_dates %>% 
+  distinct(deployment_id, month, .keep_all = TRUE)
 
 missing_deployments <- anti_join(deployments_from_mammalsdf, metadata_by_deployment, by = c("deployment_id", "month"))  # anti_join() return all rows from x without a match in y  ]
 
@@ -454,15 +394,6 @@ mammals_clean <- left_join(mammals_fixed_dates, metadata_by_month, by = join_by(
   #rename(sitename = sitename.x) %>%  #got two of these in the join
   #dplyr::select(!sitename.y) %>% 
   filter(!is.na(property)) %>%  # right now (23 jul 2024) this filters out HROA data because there's not metadata for those cams
-  
-  
-  # just found out some images from 20aug22 deployment accidentally have timestamps in march and april 2023, so we will manually fix those here (renders all daily or 7 day data unusable)
-  mutate(month = case_when(sitemonth_id == "Percos Boat Cam.Mar" ~ "Aug",
-                           TRUE ~ as.character(month))) %>% 
-  mutate(year = case_when(sitemonth_id == "Percos Boat Cam.Mar" ~ 2022,
-                           TRUE ~ as.numeric(year))) %>% 
-  mutate(sitemonth_id = case_when(sitemonth_id == "Percos Boat Cam.Mar" ~ "Percos Boat Cam.Aug",
-                           TRUE ~ as.character(sitemonth_id))) %>% 
   filter(common_name != "human",
          common_name != "domestic dog") # finally time to rule these out bc they're contained in human/trapnight estimate
 
@@ -503,8 +434,7 @@ precip_monthly <- precip_daily_orig %>% # this was dumb, i already had this, oh 
   mutate(date = mdy(date)) %>% 
   mutate(month = month(date, label = TRUE),
          year = year(date)) %>% 
-  unite(month_year, c(month, year), sep = "_") %>% 
-  group_by(month_year) %>% 
+  group_by(year, month) %>% 
   summarize(ppt_month = sum(ppt_inches)) %>% 
   ungroup()
 
@@ -515,14 +445,10 @@ precip_rollmean <- precip_monthly %>%
   },align='right',fill=NA)) %>% 
   mutate_at(vars(ppt_month),~rollmean(.,k=3,align = 'right',fill=NA)) %>% 
   mutate(prev3_months = lag(months),
-         prev3_mean_ppt = lag(ppt_month)) %>% 
-  separate(month_year, c("month", "year"), sep = "_")
+         prev3_mean_ppt = lag(ppt_month))
 
 precip <- precip_rollmean %>% 
-  select(year, month, prev3_mean_ppt) %>% 
-  mutate(year = as.numeric(year)) %>% 
-  filter(year!=2021) %>% 
-  na.omit()
+  select(year, month, prev3_mean_ppt)
 
 #prism_set_dl_dir("/Users/zoe/Documents_Local/GitHub/project_ecotone/data") # necessary for prism to work
 
@@ -533,14 +459,14 @@ precip <- precip_rollmean %>%
 
 
 
-# Planned Initial Analyses
+## Planned Initial Analyses
 - response variable: animal activity (count of occurrences) across all species and across entire study with month as random effect
 - effect variables of interest: distance from Jalama, human activity, species
       - maybe above or below Point Conception (barrier to human movement from Jalama)
 - random variables: month
 - will need to include an offset of days active per site
  
-## Bin Data Appropriately
+# Bin Data Appropriately
 counts by site > month (losing daily or weekly variation or variation due to species)
 counts by 24hr period, results in zero inflation, but that might be ok
 counts by 7-day surveys seems like the best compromise
@@ -726,51 +652,45 @@ activity_site_month_sp_adj <- activity_wide_adj %>%
                names_prefix = "sp_", # this should remove the prefix I added, i think
                values_to = "seconds_by_trapnight")
 
-activity_site_month_sp <- full_join(activity_site_month_sp_2, activity_site_month_sp_adj) #%>%  # will join based on all shared columns, so should only tack on the seconds by trapnight col
+activity_site_month_sp <- full_join(activity_site_month_sp_2, activity_site_month_sp_adj) %>%  # will join based on all shared columns, so should only tack on the seconds by trapnight col
   # finally add on lagged precip data
-  left_join(., precip, by = join_by(month)) #%>% # only want months in the study
-  mutate(month = fct_relevel(month, c("Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))) %>% 
-  mutate(sitename = fct_relevel(sitename, c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam")))
-
+  full_join(., precip) %>% 
+  na.omit()
   
 ```
 
 ### Visualize Data ~ Month and Site
 ```{r plots of mean activity by month}
 
-# general histogram of activity
-act_hist <- ggplot(activity_site_month_sp, aes(x = seconds_by_trapnight))+
-  geom_histogram()
-
 # by month, sites averaged
-month_violin <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = seconds_by_trapnight)) +
+month_violin <- ggplot(activity_7day, aes(x = as.factor(month), y = activity_seconds)) +
   geom_violin()
 
 # by month, adjusted by trapnights
-month_adj_box <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = seconds_by_trapnight))+
+month_adj_box <- ggplot(activity_7day, aes(x = as.factor(month), y = seconds_per_trapnight))+
   geom_boxplot()
 
-month_adj_violin <- ggplot(activity_site_month_sp, aes(x = as.factor(month), y = seconds_by_trapnight)) +
+month_adj_violin <- ggplot(activity_7day, aes(x = as.factor(month), y = seconds_per_trapnight)) +
   geom_violin()
 
 # by month, with species colored different
-month_species <- ggplot(activity_7day, aes(x = as.factor(month), y = seconds_by_trapnight)) +
+month_species <- ggplot(activity_7day, aes(x = as.factor(month), y = seconds_per_trapnight)) +
   geom_point(aes(color = common_name)) 
 
 # add a running mean per species
 monthly_mean_spp <- activity_7day %>% 
   group_by(month, common_name) %>% 
-  summarise(mean_activity = mean(seconds_by_trapnight),
-            sd_activity = sd(seconds_by_trapnight)) %>% 
+  summarise(mean_activity = mean(seconds_per_trapnight),
+            sd_activity = sd(seconds_per_trapnight)) %>% 
   ungroup() %>% 
   ggplot(., aes(x = month, y = mean_activity, group = common_name, colour = common_name)) +
   #geom_errorbar(aes(ymin = mean_activity - sd_activity, ymax = mean_activity + sd_activity)) + # better to just plot the scatter in this case
   geom_path() +
-  geom_point( data = activity_7day, aes(x = month, y = seconds_by_trapnight, colour = common_name))
+  geom_point( data = activity_7day, aes(x = month, y = seconds_per_trapnight, colour = common_name))
 
 # based on this, looks like the peak in the summer is slightly a function of trapping effort (aka is less pronounced when we adjust by # trapnights)
 
-#activity_7day$sitename <- factor(activity_7day$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
+activity_7day$sitename <- factor(activity_7day$sitename, levels = c("Boathouse Cam", "Ladrones Cam", "Saucito Cam", "Water Canyon Cam", "Not Water Canyon Cam", "Morida Cam","RIZ Cam", "RIZ Cam Backup", "RIZ Cam S Canyon", "Sudden Canyon Cam", "Old Fencepost Cam", "Jolluru Cam", "Short Canyon Cam", "Jalama Cam", "Jalama 2 Cam", "Cojalama Cam", "Cojo Gate Cam", "Cojo Canyon Cam", "Seawall Cam", "Black Canyon Cam", "North Beach Fort Cam", "North Vista Spring Cam", "North Beach Canyon Cam", "Boneyard Cam", "Cove Cam", "Govies Cliff Cam", "Big Cojo Cam", "Percos Boat Cam", "Percos Boat Rodents", "Percos Driftwood Cam", "Wood Canyon Cam", "Percos Beach Cam", "Percos Log Cam", "Percos Post Cam", "Damsite Creek Cam"))
 
 # by site, months averaged
 site_scatter <- ggplot(activity_7day, aes(x = sitename, y = activity_seconds)) +
@@ -914,15 +834,16 @@ human_season_pairwise <- activity_site_month_sp %>%
 ```
 
 
-# Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama * species * human activity + random effect of site 
+# Next run a GLMM with a negative binomial distribution: wildlife activity ~ distance from jalama * species * human activity + random effect of site and property
 - actually taking out species as a factor because i will model the three most active species on their own later
 
-### Trying to run models with response variable binned into month and adding in a covariate for mean rainfall over last 90 days
+### Trying to run models with response variable binned into month and adding in a covariate for season
+We will do rainy season as oct - march and dry season as april - sept
 
 ```{r glmm activity model selection month sample}
 
-# we know we need a mixed model because we need a random nesting effect of site
-# variables of interest are monthly human seconds, rainfall, distance from jalama, species, and interactions between all
+# we know we need a mixed model because we need a random nesting effect of property and site x month
+# variables of interest are monthly human seconds, season, distance from jalama, species, and interactions between all
 # number of trapnights logged as an offset -- not sure why we log this but other papers do it (because there's a log link for the rest of the function)
 
 incomplete <- activity_site_month_sp %>% 
@@ -942,7 +863,7 @@ incomplete <- activity_site_month_sp %>%
 # RANDOM variable is survey_id
 # potential EXPLANATORY variables are:
 ## property: VSFB, JLDP, Jalama ## rank deficient
-## mean rainfall over last 90 days
+## season
 ## common_name (species) ## rank deficient
 ## iz_type ## rank deficient
 ## dist_jalama
@@ -950,6 +871,11 @@ incomplete <- activity_site_month_sp %>%
 
 ######### NULL MODELS ######### 
 
+#glmm_null <- glmer.nb(activity_seconds ~ 1, 
+#                     data = activity_site_month_sp, 
+#                     family = nbinom2(link = "log"), 
+#                     offset = log10(trapnights), 
+#                         na.action = "na.fail")
 
 glmm_null_randoms <- glmmTMB(activity_seconds ~ 1 
                              + (1|sitename), 
@@ -969,7 +895,7 @@ glmm_full_inx_ppt <- glmmTMB(activity_seconds ~ prev3_mean_ppt * humans_per_trap
                          offset = log10(trapnights), 
                          na.action = "na.fail") 
 
-glmm_full_inx <- glmmTMB(activity_seconds ~ prev3_mean_ppt * humans_per_trapnight * dist_jalama
+glmm_full_inx <- glmmTMB(activity_seconds ~ season * humans_per_trapnight * dist_jalama
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
@@ -978,7 +904,7 @@ glmm_full_inx <- glmmTMB(activity_seconds ~ prev3_mean_ppt * humans_per_trapnigh
 
 glmm_full_inx_zi <- update(glmm_full_inx, ziformula = ~1) # we're adding on a single zero inflation parameter to all observations (not a hurdle) - treats zero counts as a mixture of structural and sampling zeros, just giving the bernoulli formula an intercept
 
-glmm_full_add <- glmmTMB(activity_seconds ~ prev3_mean_ppt + humans_per_trapnight + dist_jalama
+glmm_full_add <- glmmTMB(activity_seconds ~ season + humans_per_trapnight + dist_jalama
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
@@ -987,25 +913,25 @@ glmm_full_add <- glmmTMB(activity_seconds ~ prev3_mean_ppt + humans_per_trapnigh
 
 glmm_full_add_zi <- update(glmm_full_add, ziformula = ~1)
 
-glmm_full_rainxhum <- glmmTMB(activity_seconds ~ prev3_mean_ppt * humans_per_trapnight + dist_jalama
+glmm_full_seasxhum <- glmmTMB(activity_seconds ~ season * humans_per_trapnight + dist_jalama
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_rainxhum_zi <- update(glmm_full_rainxhum, ziformula = ~1)
+glmm_full_seasxhum_zi <- update(glmm_full_seasxhum, ziformula = ~1)
 
-glmm_full_rainxdist <- glmmTMB(activity_seconds ~ prev3_mean_ppt * dist_jalama + humans_per_trapnight 
+glmm_full_seasxdist <- glmmTMB(activity_seconds ~ season * dist_jalama + humans_per_trapnight 
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_full_rainxdist_zi <- update(glmm_full_seasxdist, ziformula = ~1)
+glmm_full_seasxdist_zi <- update(glmm_full_seasxdist, ziformula = ~1)
 
-glmm_full_distxhum <- glmmTMB(activity_seconds ~ prev3_mean_ppt + dist_jalama * humans_per_trapnight 
+glmm_full_distxhum <- glmmTMB(activity_seconds ~ season + dist_jalama * humans_per_trapnight 
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
@@ -1019,77 +945,77 @@ glmm_full_distxhum_zi <- update(glmm_full_distxhum, ziformula = ~1) # we're addi
 ######### MULTIPLE COVARIATE MODELS ######### 
 
 # just to see:
-#glmm_distxseas_distxhum <- glmmTMB(activity_seconds ~ (dist_jalama * total_human_sec) + (dist_jalama * prev3_mean_ppt)
+#glmm_distxseas_distxhum <- glmmTMB(activity_seconds ~ (dist_jalama * total_human_sec) + (dist_jalama * season)
 #                          + (1|sitename), 
 #                         data = activity_site_month_sp, 
 #                         family = nbinom2(link = "log"), 
 #                         offset = log10(trapnights), 
 #                         na.action = "na.fail") # necessary for dredge to work
 
-glmm_distxhum <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight 
+glmm_1x <- glmmTMB(activity_seconds ~ dist_jalama * humans_per_trapnight 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") # necessary for dredge to work
 
-glmm_distxhum_zi <- update(glmm_distxhum, ziformula = ~1)
+glmm_1x_z<- update(glmm_1x, ziformula = ~1)
 
-glmm_distahum <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight 
+glmm_1a <- glmmTMB(activity_seconds ~ dist_jalama + humans_per_trapnight 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_distahum_zi <- update(glmm_distahum, ziformula = ~1)
+glmm_1a_z<- update(glmm_1a, ziformula = ~1)
 
-glmm_rainxhum <- glmmTMB(activity_seconds ~ prev3_mean_ppt * humans_per_trapnight 
+glmm_2x <- glmmTMB(activity_seconds ~ season * humans_per_trapnight 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") # necessary for dredge to work
 
-glmm_rainxhum_zi<- update(glmm_rainxhum, ziformula = ~1)
+glmm_2x_z<- update(glmm_2x, ziformula = ~1)
 
-glmm_rainahum <- glmmTMB(activity_seconds ~ prev3_mean_ppt + humans_per_trapnight 
+glmm_2a <- glmmTMB(activity_seconds ~ season + humans_per_trapnight 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_rainahum_zi<- update(glmm_rainahum, ziformula = ~1)
+glmm_2a_z<- update(glmm_2a, ziformula = ~1)
 
-glmm_rainxdist <- glmmTMB(activity_seconds ~ prev3_mean_ppt * dist_jalama 
+glmm_3x <- glmmTMB(activity_seconds ~ season * dist_jalama 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail") 
 
-glmm_rainxdist_zi <- update(glmm_rainxdist, ziformula = ~1)
+glmm_3x_z<- update(glmm_3x, ziformula = ~1)
 
-glmm_rainadist <- glmmTMB(activity_seconds ~ prev3_mean_ppt + dist_jalama 
+glmm_3a <- glmmTMB(activity_seconds ~ season + dist_jalama 
                           + (1|sitename) , 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_rainadist_zi <- update(glmm_rainadist, ziformula = ~1)
+glmm_3a_z<- update(glmm_3a, ziformula = ~1)
 
 ######### SINGLE COVARIATE MODELS ######### 
 
-glmm_prev3_mean_ppt <- glmmTMB(activity_seconds ~ prev3_mean_ppt 
+glmm_season <- glmmTMB(activity_seconds ~ season 
                           + (1|sitename), 
                          data = activity_site_month_sp, 
                          family = nbinom2(link = "log"), 
                          offset = log10(trapnights), 
                          na.action = "na.fail")
 
-glmm_prev3_mean_ppt_z<- update(glmm_prev3_mean_ppt, ziformula = ~1)
+glmm_season_z<- update(glmm_season, ziformula = ~1)
 
 glmm_dist <- glmmTMB(activity_seconds ~ dist_jalama
                           + (1|sitename), 
@@ -1115,25 +1041,25 @@ bbmle::AICtab(glmm_full_inx, glmm_full_inx_zi,
                                     glmm_full_seasxhum, glmm_full_seasxhum_zi,
                                     glmm_full_seasxdist, glmm_full_seasxdist_zi,
                                     glmm_full_distxhum, glmm_full_distxhum_zi,
-                                    glmm_distxhum, glmm_distxhum_zi, glmm_distahum, glmm_distahum_zi,
-                                    glmm_rainxhum, glmm_rainxhum_zi, glmm_rainahum, glmm_rainahum_zi,
-                                    glmm_rainxdist, glmm_rainxdist_zi, glmm_rainadist, glmm_rainadist_zi,
+                                    glmm_1x, glmm_1a, glmm_1x_z, glmm_1a_z, 
+                                    glmm_2x, glmm_2a, glmm_2x_z, glmm_2a_z,
+                                    glmm_3x, glmm_3a,  glmm_3a_z, glmm_3x_z, 
                                     glmm_dist, glmm_dist_z,
                                     glmm_human, glmm_human_z,
-                                    glmm_prev3_mean_ppt, glmm_prev3_mean_ppt_z,
+                                    glmm_season, glmm_season_z,
                                     glmm_null_randoms, glmm_null_zi, logLik = TRUE,  base = TRUE)
 
-activity_aic_table <- bbmle::AICtab(glmm_full_inx_zi, # only including zero inflated in the final table
+activity_aic_table <- bbmle::AICtab( glmm_full_inx_zi, # only including zero inflated in the final table
                                     glmm_full_add_zi,
-                                     glmm_full_rainxhum_zi,
-                                     glmm_full_rainxdist_zi,
+                                     glmm_full_seasxhum_zi,
+                                     glmm_full_seasxdist_zi,
                                      glmm_full_distxhum_zi,
-                                     glmm_distxhum_zi, glmm_distahum_zi, 
-                                     glmm_rainxhum_zi, glmm_rainahum_zi,
-                                     glmm_rainxdist_zi, glmm_rainadist_zi,
+                                     glmm_1x_z, glmm_1a_z, 
+                                     glmm_2x_z, glmm_2a_z,
+                                     glmm_3a_z, glmm_3x_z, 
                                      glmm_dist_z,
                                      glmm_human_z,
-                                     glmm_prev3_mean_ppt_z,
+                                     glmm_season_z,
                                      glmm_null_zi, logLik = TRUE,  base = TRUE)
 
 activity_aic_table <- as.tibble(activity_aic_table) %>% 
@@ -1151,18 +1077,11 @@ testZeroInflation(simulationOutput)
 plot(x = simulationOutput$observedResponse, y = simulationOutput$fittedPredictedResponse)
 #testSpatialAutocorrelation(simulationOutput, x = activity_site_month_sp$dist_jalama, y = activity_site_month_sp$activity_seconds)
 
-# best 3:
-#glmm_rainadist_zi      
-#glmm_full_add_zi       
-#glmm_rainxdist_zi
-
 
 ####### plotting and R2 of best models ####### 
 
-plot(allEffects(glmm_rainxdist_zi))
-r.squaredGLMM(glmm_rainadist_zi)
-r.squaredGLMM(glmm_full_add_zi )
-r.squaredGLMM(glmm_rainxdist_zi) # highest r2 but just barely
+plot(allEffects(glmm_3x_z))
+r.squaredGLMM(glmm_3x_z)
 
 ```
 
@@ -1176,7 +1095,6 @@ r.squaredGLMM(glmm_rainxdist_zi) # highest r2 but just barely
 # good thing we already made one
 
 activity_corrs1 <- activity_wide %>% 
-  full_join(., precip) %>% 
   select(!burst_settings)
 activity_corrs <- cor(select_if(activity_corrs1, is.numeric))  # cor and corrplot can only deal with numeric values, makes sense
 activity_corrs2 <- cor(select_if(activity_wide_adj, is.numeric)) # same thing but adjusted for effort
